@@ -1,0 +1,11 @@
+# Rust target directory (ローカルビルド成果物を送信しない)
+/target
+target/
+
+# Confidential & Environment files
+confidential/
+.env*
+
+# Documentation & non-essential files
+/docs
+README.md

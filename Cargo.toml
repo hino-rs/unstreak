@@ -1,0 +1,20 @@
+[package]
+name = "app-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+vercel_runtime = "2"
+hyper = "1"
+
+[[bin]]
+name = "ping"
+path = "api/ping.rs"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
