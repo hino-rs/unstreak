@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createSupabaseClient } from "@/utils/supabase/server";
 import { UserIcon } from "@/components/user-icon";
 import Link from "next/link";
 import { Fredoka } from "next/font/google";
@@ -6,7 +6,7 @@ import { Fredoka } from "next/font/google";
 const fredoka = Fredoka({ subsets: ['latin'], weight: ['400', '600'] });
 
 export default async function AppPageLayout({ children }: { children: React.ReactNode }) {
-    const supabase = await createClient();
+    const supabase = await createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     return (

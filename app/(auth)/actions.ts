@@ -1,10 +1,10 @@
 "use server";
 
-import { createClient } from "@/utils/supabase/server";
+import { createSupabaseClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 
 export async function logout() {
-  const supabase = await createClient();
+  const supabase = await createSupabaseClient();
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error("ログアウトエラー:", error.message);
@@ -15,7 +15,7 @@ export async function logout() {
 }
 
 export async function login(formData: FormData) {
-  const supabase = await createClient();
+  const supabase = await createSupabaseClient();
 
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -35,7 +35,7 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const supabase = await createClient();
+  const supabase = await createSupabaseClient();
 
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
