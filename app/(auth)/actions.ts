@@ -1,6 +1,6 @@
 "use server";
 
-import { createSupabaseClient } from "@/utils/supabase/server";
+import { createSupabaseClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
 export async function logout() {

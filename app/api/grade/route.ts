@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/utils/supabase/server";
+import { createSupabaseClient } from "@/lib/supabase/server";
 import { gradeDescription, toConceptKey } from "@/lib/ai1";
 import type { GradingError } from "@/lib/ai1";
 

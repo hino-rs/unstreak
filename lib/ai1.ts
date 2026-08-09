@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from 'zod';
-import { anthropic } from "@/utils/anthropic";
+import { anthropic } from "@/lib/anthropic";
 
 const GradingErrorSchema = z.object({
   category: z

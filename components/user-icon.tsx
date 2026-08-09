@@ -39,7 +39,7 @@ export function UserIcon({ user }: { user: User }) {
         <DropdownMenuGroup>
           <DropdownMenuItem>プロフィール</DropdownMenuItem>
           <DropdownMenuItem>請求</DropdownMenuItem>
-          <DropdownMenuItem>設定</DropdownMenuItem>
+          <DropdownMenuItem>アカウント設定</DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
