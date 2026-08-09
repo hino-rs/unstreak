@@ -33,11 +33,11 @@ const GradingErrorSchema = z.object({
 });
 
 const GradingResultSchema = z.object({
-  corrected_text: z.string().describe('ユーザーの英文を修正した全体の英文'),
-  overall_comment: z.string().describe('1〜2文程度の日本語での総評・フィードバックコメント'),
   errors: z
     .array(GradingErrorSchema)
     .describe('指摘する誤り一覧の配列。誤りがない場合は必ず空配列 [] を指定してください'),
+  corrected_text: z.string().describe('ユーザーの英文を修正した全体の英文'),
+  overall_comment: z.string().describe('1〜2文程度の日本語での総評・フィードバックコメント'),
 });
 
 export type GradingResult = z.infer<typeof GradingResultSchema>;
@@ -48,7 +48,7 @@ const TOOL_NAME = 'submit_grading';
 export async function gradeDescription(imageUrl: string, userText: string): Promise<GradingResult> {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    max_tokens: 4096,
     tools: [
       {
         name: TOOL_NAME,
@@ -57,6 +57,11 @@ export async function gradeDescription(imageUrl: string, userText: string): Prom
       },
     ],
     tool_choice: { type: 'tool', name: TOOL_NAME },
+    system: `あなたは日本人英語学習者向けの英作文添削者です。
+              - 誤りは1箇所につき1エントリとして、**すべて** errors に列挙する
+              - 同じ文法項目の誤りが複数箇所にあれば、箇所ごとに別エントリにする
+              - overall_comment で言及した誤りは、必ず対応するエントリが errors に存在すること
+              - 誤りが本当に1つもない場合に限り errors を [] にする`,
     messages: [
       {
         role: 'user',
@@ -70,6 +75,10 @@ export async function gradeDescription(imageUrl: string, userText: string): Prom
       },
     ],
   });
+
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error('AI1の応答が途中で打ち切られました(max_tokens)');
+  }
  
   const toolUseBlock = response.content.find(
     (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use' && block.name === TOOL_NAME,
@@ -82,8 +91,8 @@ export async function gradeDescription(imageUrl: string, userText: string): Prom
  
   // 万が一errorsが文字列やnullで返ってきた場合でも安全にフォールバック
   const rawInput = (typeof toolUseBlock.input === 'object' && toolUseBlock.input !== null)
-    ? (toolUseBlock.input as Record<string, unknown>)
-    : {};
+  ? (toolUseBlock.input as Record<string, unknown>)
+  : {};
   const sanitizedInput = {
     ...rawInput,
     errors: Array.isArray(rawInput.errors) ? rawInput.errors : [],

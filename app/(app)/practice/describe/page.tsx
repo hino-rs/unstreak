@@ -79,9 +79,10 @@ interface ResultModalProps {
   onOpenChange: (open: boolean) => void
   result: GradingResult | null
   errorText: string | null
+  nextStepHandler: () => void
 }
 
-function ResultModal({ open, onOpenChange, result, errorText }: ResultModalProps) {
+function ResultModal({ open, onOpenChange, result, errorText, nextStepHandler }: ResultModalProps) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = (text: string) => {
@@ -229,7 +230,7 @@ function ResultModal({ open, onOpenChange, result, errorText }: ResultModalProps
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             閉じる
           </Button>
-          <Button onClick={() => onOpenChange(false)}>
+          <Button onClick={() => {onOpenChange(false); nextStepHandler()}}>
             次へ進む
           </Button>
         </DialogFooter>
@@ -435,6 +436,7 @@ export default function DescribePage() {
         onOpenChange={setIsModalOpen}
         result={gradingResult}
         errorText={errorText}
+        nextStepHandler={handleNextStep}
       />
     </div>
   )
