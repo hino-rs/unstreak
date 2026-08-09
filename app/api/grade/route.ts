@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/utils/supabase/server";
 import { gradeDescription, toConceptKey } from "@/lib/ai1";
+import type { GradingError } from "@/lib/ai1";
+
+// weak_points.display_label用のラベル辞書
+const grammarPointLabels: Record<string, string> = {
+  articles: "冠詞",
+  past_tense: "過去形",
+  present_perfect: "現在完了形",
+  prepositions: "前置詞",
+  plural_agreement: "単複の一致",
+  subject_verb_agreement: "主語と動詞の一致",
+  word_order: "語順",
+  comparatives: "比較表現",
+  conditionals: "仮定法・条件文",
+  modal_verbs: "助動詞",
+  passive_voice: "受動態",
+  other: "その他文法",
+};
+
+function toDisplayLabel(error: GradingError): string | null {
+    if (error.category === "grammar" && error.grammar_point) {
+        return grammarPointLabels[error.grammar_point] ?? error.grammar_point;
+    }
+    if (error.category === "vocabulary" && error.vocab_lemma) {
+        return error.vocab_lemma.toLowerCase().trim();
+    }
+    return null;
+}
 
 export async function POST(req: NextRequest) {
     const supabase = await createSupabaseClient();
@@ -14,77 +41,51 @@ export async function POST(req: NextRequest) {
 
     const grading = await gradeDescription(imageUrl, userText);
     
-    for (const error of grading.errors) {
-        const conceptKey = toConceptKey(error);
-        if (!conceptKey) continue;
+    // 提出履歴を保存
+    const { error: insertError } = await supabase.from("drill_attempts").insert({
+        user_id: user.id,
+        image_url: imageUrl,
+        submitted_text: userText,
+        ai1_response: grading,
+    });
+    if (insertError) {
+        console.error("[grade] drill_atemts insert failed:", insertError);
     }
 
+    // 弱点プールへの反映
+    // 同一提出内で同じconcept_keyが複数出ても1回分としてカウントする
+    const seenKeys = new Set<string>();
+    const uniqueErrors: { error: GradingError; conceptKey: string }[] = [];
+    for (const err of grading.errors) {
+        const conceptKey = toConceptKey(err);
+        if (!conceptKey || seenKeys.has(conceptKey)) continue;
+        seenKeys.add(conceptKey);
+        uniqueErrors.push({ error: err, conceptKey });
+    }
+
+    const weakPointResults = await Promise.allSettled(
+    uniqueErrors.map(({ error: err, conceptKey }) =>
+        supabase.rpc("upsert_weak_point", {
+            p_user_id: user.id,
+            p_concept_key: conceptKey,
+            p_category: err.category,
+            p_display_label: toDisplayLabel(err),
+        }),
+        ),
+    );
+    weakPointResults.forEach((result, i) => {
+    if (result.status === "rejected") {
+        console.error(
+            `[grade] upsert_weak_point failed for ${uniqueErrors[i].conceptKey}:`,
+            result.reason,
+        );
+        } else if (result.value.error) {
+        console.error(
+            `[grade] upsert_weak_point RPC error for ${uniqueErrors[i].conceptKey}:`,
+            result.value.error,
+        );
+        }
+    });
+
     return NextResponse.json(grading);
-
-
-    // const claudeRes = await anthropic.messages.create({
-    //     model: "claude-haiku-4-5",
-    //     max_tokens: 1024,
-    //     tools: [
-    //         {
-    //             "name": "submit_grading",
-    //             "description": "画像描写ドリルの添削結果",
-    //             "input_schema": {
-    //                 "type": "object",
-    //                 "properties": {
-    //                     "corrected_text": {
-    //                         "type": "string",
-    //                         "description": "ユーザーの英文の修正済みフルバージョン"
-    //                     },
-    //                     "overall_comment": {
-    //                         "type": "string",
-    //                         "description": "1〜2文の日本語コメント。前向きだが率直に"
-    //                     },
-    //                     "errors": {
-    //                         "type": "array",
-    //                         "items": {
-    //                             "type": "object",
-    //                             "properties": {
-    //                                 "category": {
-    //                                     "type": "string",
-    //                                     "enum": ["grammar", "vocabulary", "unnatural_phrasing", "spelling"]
-    //                                 },
-    //                                 "grammar_point": {
-    //                                     "type": "string",
-    //                                     "enum": [
-    //                                         "articles", "past_tense", "present_perfect", "prepositions",
-    //                                         "plural_agreement", "subject_verb_agreement", "word_order",
-    //                                         "comparatives", "conditionals", "modal_verbs", "passive_voice", "other"
-    //                                     ],
-    //                                     "description": "categoryが'grammar'の時のみ指定"
-    //                                 },
-    //                                 "vocab_lemma": {
-    //                                     "type": "string",
-    //                                     "description": "categoryが'vocabulary'の時のみ指定。対象語を辞書形・小文字で"
-    //                                 },
-    //                                 "user_fragment": { "type": "string", "description": "ユーザーが書いた問題箇所" },
-    //                                 "corrected_fragment": { "type": "string", "description": "修正後の該当箇所" },
-    //                                 "explanation_ja": { "type": "string", "description": "なぜ違うかの日本語説明、簡潔に" }
-    //                             },
-    //                             "required": ["category", "user_fragment", "corrected_fragment", "explanation_ja"]
-    //                         }
-    //                     }
-    //                 },
-    //                 "required": ["corrected_text", "overall_comment", "errors"]
-    //             }
-    //         }
-    //     ],
-    //     messages: [{
-    //         role: 'user',
-    //         content: [
-    //             { type: 'image', source: { type: 'url', url: imageUrl } },
-    //             {
-    //                 type: 'text',
-    //                 text: `この画像に対する英語学習者の説明文を採点してください。文法・語彙の正しさを中心に見つつ、明らかな事実誤認があれば指摘してください。説明の網羅性は評価対象に含めないでください。\n\n学習者の説明: ${userText}`,
-    //             },
-    //         ],
-    //     }],
-    // });
-
-    // return NextResponse.json(claudeRes);
 }

@@ -54,11 +54,12 @@ AI1の添削結果とAI2への質問ログを一元集約する個人専用の�
 ## 技術スタック
 
 - Frontend: Next.js
-- Styling: Tailwind
-- UI kit: shadcn/ui
-- Font: Fredoka/Baloo 2/Quicksand
-- Animation: Motion + canvas-confetti
-- Icon: Lucide
 - Image: Unsplash API
 - Database: Supabase
 - Infra: Vercel
+
+## UIサービス
+
+- shadcn
+- Magic UI
+- Aceternity UI
