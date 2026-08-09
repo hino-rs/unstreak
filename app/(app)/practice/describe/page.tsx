@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Message, MessageAvatar, MessageContent } from "@/components/ui/message"
 import { Badge } from "@/components/ui/badge"
-import React, { useCallback, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -28,8 +28,11 @@ import {
   Check,
   Copy,
   RefreshCw,
+  Timer,
+  Clock,
 } from "lucide-react"
 import { ShinyButton } from "@/components/ui/shiny-button"
+import { useStopwatch } from "@/hooks/use-stopwatch"
 
 interface NextImageData {
   imageUrl: string
@@ -80,9 +83,17 @@ interface ResultModalProps {
   result: GradingResult | null
   errorText: string | null
   nextStepHandler: () => void
+  duration?: { seconds: number; formatted: string } | null
 }
 
-function ResultModal({ open, onOpenChange, result, errorText, nextStepHandler }: ResultModalProps) {
+function ResultModal({
+  open,
+  onOpenChange,
+  result,
+  errorText,
+  nextStepHandler,
+  duration,
+}: ResultModalProps) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = (text: string) => {
@@ -95,9 +106,17 @@ function ResultModal({ open, onOpenChange, result, errorText, nextStepHandler }:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-5 text-primary" />
-            <DialogTitle className="text-xl">AI添削結果</DialogTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              <DialogTitle className="text-xl">AI添削結果</DialogTitle>
+            </div>
+            {duration && (
+              <Badge variant="outline" className="flex items-center gap-1 font-mono text-xs font-normal">
+                <Clock className="size-3 text-muted-foreground" />
+                <span>回答時間: {duration.formatted}</span>
+              </Badge>
+            )}
           </div>
           <DialogDescription>
             AIによる英文の添削と解説フィードバックです
@@ -249,8 +268,13 @@ export default function DescribePage() {
   const [errorText, setErrorText] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  // ストップウォッチによる経過時間の管理
+  const { elapsedTime, formattedTime, isRunning, stop, reset, restart } = useStopwatch()
+  const [submittedDuration, setSubmittedDuration] = useState<{ seconds: number; formatted: string } | null>(null)
 
   const fetchNextImage = useCallback(async () => {
+    reset()
     setIsImageLoading(true)
     setImageError(null)
     console.log("[DEBUG] fetchNextImage started: requesting /practice/describe/next-image")
@@ -276,13 +300,16 @@ export default function DescribePage() {
       console.log("[DEBUG] fetchNextImage success:", data)
       setImageData(data)
       setUserText("")
+      // 画像取得完了と同時にタイマースタート
+      restart()
     } catch (err: any) {
       console.error("[DEBUG] Failed to fetch next image:", err)
       setImageError(err.message || "画像を取得できませんでした")
+      reset()
     } finally {
       setIsImageLoading(false)
     }
-  }, [])
+  }, [restart, reset])
 
   const handleNextStep = () => {
     setIsModalOpen(false)
@@ -292,6 +319,11 @@ export default function DescribePage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!imageData?.imageUrl || !userText.trim() || isLoading) return
+
+    // 送信時にタイマーを停止し、回答にかかった時間を記録
+    stop()
+    const currentDuration = { seconds: elapsedTime, formatted: formattedTime }
+    setSubmittedDuration(currentDuration)
 
     setIsLoading(true)
     setErrorText(null)
@@ -327,109 +359,109 @@ export default function DescribePage() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-full w-full bg-gray-100 p-6">
-      <div className="">
-        <ShinyButton
-          onClick={fetchNextImage}
-          disabled={isImageLoading || isLoading}
+    <div className="flex flex-col min-h-full w-full bg-gray-100 p-6 flex-1 items-center justify-center gap-8">
+      <ShinyButton
+        onClick={fetchNextImage}
+        disabled={isImageLoading || isLoading}
+        className="w-1/2 max-w-sm"
+      >
+        {isImageLoading ? (
+          <span className="flex items-center gap-2">
+            <Loader2 className="size-4 animate-spin" />
+            取得中...
+          </span>
+        ) : (
+          <span className="flex items-center gap-2">
+            <RefreshCw className="size-4" />
+            別の画像を取得(1クレジットを消費します)
+          </span>
+        )}
+      </ShinyButton>
+
+      {/* ステータスバー（枚数 ＆ 経過時間タイマー） */}
+      <div className="flex items-center justify-between w-full max-w-xl px-1">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Sparkles className="size-3.5 text-primary" />
+          <span>本日 <span className="font-semibold text-foreground">1</span> 枚目</span>
+        </div>
+
+        <div
+          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-medium transition-colors shadow-2xs ${
+            isRunning
+              ? "bg-white border-primary/30 text-primary"
+              : "bg-white/80 border-border text-muted-foreground"
+          }`}
         >
+          <Timer className={`size-3.5 ${isRunning ? "animate-pulse text-primary" : "text-muted-foreground"}`} />
+          <span className="text-muted-foreground">経過時間:</span>
+          <span className="font-mono font-semibold text-foreground text-sm">{formattedTime}</span>
+          <span className="text-[11px] text-muted-foreground">({elapsedTime}秒)</span>
+        </div>
+      </div>
+
+      {/* 画像と回答入力フォームセクション */}
+      <div className="flex flex-col gap-6 bg-white p-8 rounded-2xl shadow-xs w-full max-w-xl">
+        <AspectRatio ratio={16 / 9} className="rounded-lg bg-muted overflow-hidden relative">
           {isImageLoading ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="size-4 animate-spin" />
-              取得中...
-            </span>
+            <div className="flex h-full w-full items-center justify-center bg-gray-100 text-muted-foreground">
+              <Loader2 className="size-8 animate-spin" />
+            </div>
+          ) : imageData?.imageUrl ? (
+            <Image
+              src={imageData.imageUrl}
+              alt="Description practice image"
+              fill
+              className="rounded-lg object-cover"
+              priority
+            />
           ) : (
-            <span className="flex items-center gap-2">
-              <RefreshCw className="size-4" />
-              別の画像を取得(1クレジットを消費します)
+            <div className="flex h-full w-full items-center justify-center bg-gray-100 text-sm text-destructive">
+              {imageError || "画像がありません"}
+            </div>
+          )}
+        </AspectRatio>
+
+        <div className="flex justify-between text-xs text-muted-foreground font-medium">
+          <span>画像描写トレーニング</span>
+          {imageData && (
+            <span>
+              Photo by{" "}
+              <a
+                href={`${imageData.photographerUrl}?utm_source=unstreak&utm_medium=referral`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                {imageData.photographerName}
+              </a>{" "}
+              on Unsplash
             </span>
           )}
-        </ShinyButton>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <Textarea
+            required
+            rows={6}
+            placeholder="画像を見て、英語で説明してみましょう（例: A cute rabbit is sitting on the grass...）"
+            value={userText}
+            onChange={(e) => setUserText(e.target.value)}
+            disabled={isLoading}
+            className="resize-none"
+          />
+          <Button type="submit" disabled={isLoading || !userText.trim()} className="w-full">
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                AIが採点中...
+              </>
+            ) : (
+              "添削してもらう"
+            )}
+          </Button>
+        </form>
       </div>
-      <div className="flex">
-        {/* 画像と回答入力フォームセクション */}
-        <section className="flex w-3/5 items-center justify-center">
-          <div className="flex flex-col gap-6 bg-white p-8 rounded-2xl shadow-xs w-full max-w-xl">
-            <AspectRatio ratio={16 / 9} className="rounded-lg bg-muted overflow-hidden relative">
-              {isImageLoading ? (
-                <div className="flex h-full w-full items-center justify-center bg-gray-100 text-muted-foreground">
-                  <Loader2 className="size-8 animate-spin" />
-                </div>
-              ) : imageData?.imageUrl ? (
-                <Image
-                  src={imageData.imageUrl}
-                  alt="Description practice image"
-                  fill
-                  className="rounded-lg object-cover"
-                  priority
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-gray-100 text-sm text-destructive">
-                  {imageError || "画像がありません"}
-                </div>
-              )}
-            </AspectRatio>
-
-
-            <div className="flex justify-between text-xs text-muted-foreground font-medium">
-              <span>画像描写トレーニング</span>
-              {imageData && (
-                <span>
-                  Photo by{" "}
-                  <a
-                    href={`${imageData.photographerUrl}?utm_source=unstreak&utm_medium=referral`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    {imageData.photographerName}
-                  </a>{" "}
-                  on Unsplash
-                </span>
-              )}
-            </div>
-
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <Textarea
-                required
-                rows={6}
-                placeholder="画像を見て、英語で説明してみましょう（例: A cute rabbit is sitting on the grass...）"
-                value={userText}
-                onChange={(e) => setUserText(e.target.value)}
-                disabled={isLoading}
-                className="resize-none"
-              />
-              <Button type="submit" disabled={isLoading || !userText.trim()} className="w-full">
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    AIが採点中...
-                  </>
-                ) : (
-                  "添削してもらう"
-                )}
-              </Button>
-            </form>
-          </div>
-        </section>
-
-        {/* AI1とAI2セクション (質問用AIアシスタントのモック) */}
-        <section className="flex w-2/5 p-16">
-          <Message className="h-full bg-white">
-            <MessageAvatar>
-              <Avatar>
-                <AvatarImage src="" alt="" />
-                <AvatarFallback>You</AvatarFallback>
-              </Avatar>
-            </MessageAvatar>
-            <MessageContent>
-              <Bubble>
-                <BubbleContent>How can I help you today?</BubbleContent>
-              </Bubble>
-            </MessageContent>
-          </Message>
-        </section>
-      </div>
+    
       {/* 結果表示モーダル */}
       <ResultModal
         open={isModalOpen}
@@ -437,6 +469,7 @@ export default function DescribePage() {
         result={gradingResult}
         errorText={errorText}
         nextStepHandler={handleNextStep}
+        duration={submittedDuration}
       />
     </div>
   )
