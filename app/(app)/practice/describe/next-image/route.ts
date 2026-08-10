@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { unsplash } from "@/lib/unsplash";
 import { createSupabaseClient } from "@/lib/supabase/server";
 
-const QUERY = "photography";
+const QUERY = "";
 
 export const GET = async () => {
     console.log("[DEBUG API] GET /practice/describe/next-image called");
