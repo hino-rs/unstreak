@@ -1225,7 +1225,7 @@ export function DashboardView({ initialData }: { initialData: DashboardData }) {
 
   return (
     <>
-      <div className="h-full w-full overflow-hidden p-4 md:p-6 flex flex-col max-w-7xl mx-auto">
+      <div className="h-full w-full overflow-y-auto md:overflow-hidden p-4 md:p-6 flex flex-col max-w-7xl mx-auto">
         <BentoGrid>
           {features.map((feature, idx) => (
             <BentoCard key={idx} {...feature} />
