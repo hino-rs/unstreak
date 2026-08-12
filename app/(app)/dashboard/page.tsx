@@ -1,43 +1,259 @@
-export default function DashboardPage() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-45">
-      {/* 1. メイン: 弱点マップ（大きく目立たせる: 2列 x 2行） */}
-      <div className="md:col-span-2 md:row-span-2 rounded-2xl border border-border/60 bg-card p-6 shadow-sm flex flex-col justify-between hover:border-primary/40 transition-colors">
-        <div>
-          <span className="text-xs font-semibold text-primary uppercase tracking-wider">Analysis</span>
-          <h3 className="text-lg font-bold mt-1">弱点フォーカスマップ</h3>
-          <p className="text-sm text-muted-foreground">直近のストリーク中断要因をヒートマップで可視化</p>
-        </div>
-        <div className="h-48 rounded-xl bg-muted/40 flex items-center justify-center text-muted-foreground text-sm">
-          {/* ここにマップやチャート */}
-          弱点マップチャート表示エリア
-        </div>
-      </div>
+import { redirect } from "next/navigation"
+import { SupabaseClient, User } from "@supabase/supabase-js"
+import { createSupabaseClient } from "@/lib/supabase/server"
+import {
+  DashboardView,
+  type DashboardData,
+  type Activity,
+  type Drill,
+  type WeakLabelCount,
+  type GuessStats,
+  type QueryHistoryItem,
+  type DailyAccuracyPoint,
+} from "./dashboard-view"
+import type { GradingResult } from "@/lib/ai1"
 
-      {/* 2. サブ1: 今日のスコア / 重要指標（1列 x 1行） */}
-      <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm hover:border-primary/40 transition-colors">
-        <span className="text-xs font-medium text-muted-foreground">今日の回復率</span>
-        <div className="mt-2 text-3xl font-extrabold tracking-tight">92.4%</div>
-        <p className="text-xs text-emerald-500 mt-1 font-medium">↑ 前週比 +8.2%</p>
-      </div>
+async function getData(): Promise<DashboardData> {
+  const supabase = await createSupabaseClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) {
+    redirect("/login")
+  }
 
-      {/* 3. サブ2: ストリーク状況（1列 x 1行） */}
-      <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm hover:border-primary/40 transition-colors">
-        <span className="text-xs font-medium text-muted-foreground">現在ストリーク</span>
-        <div className="mt-2 text-3xl font-extrabold tracking-tight">14 日</div>
-        <p className="text-xs text-muted-foreground mt-1">自己ベストまであと 3日</p>
-      </div>
+  // 先週比較のために14日前まで取得
+  const twoWeeksAgo = new Date()
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+  const twoWeeksStr = twoWeeksAgo.toISOString()
 
-      {/* 4. 横長カード: 直近の傾向・アドバイス（2列 x 1行） */}
-      <div className="md:col-span-2 rounded-2xl border border-border/60 bg-card p-5 shadow-sm hover:border-primary/40 transition-colors flex items-center justify-between">
-        <div>
-          <h4 className="text-sm font-semibold">AI アナライザーの推奨アクション</h4>
-          <p className="text-xs text-muted-foreground mt-1">木曜夜の離脱率が高めです。リマインド時間を30分早めることを推奨します。</p>
-        </div>
-      </div>
+  // 今週と先週の境界 (7日前)
+  const oneWeekAgo = new Date()
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
-      {/* 5. 縦長カード: リスト・履歴（1列 x 2行 など） */}
-      {/* ... */}
-    </div>
-  );
+  const [recentDrillResults, guessStats, weaknessFocus] = await Promise.all([
+    getRecentDrillResults(supabase, user),
+    getGuessStats(supabase, user, twoWeeksStr, oneWeekAgo),
+    getWeaknessFocus(supabase, user),
+  ])
+
+  const recentActivity = getRecentActivity(
+    recentDrillResults,
+    guessStats.recentQueries
+  )
+
+  return {
+    guessStats,
+    recentActivity,
+    weaknessFocus,
+    recentDrillResults,
+  }
+}
+
+async function getRecentDrillResults(
+  supabase: SupabaseClient,
+  user: User
+): Promise<Drill[]> {
+  const { data } = await supabase
+    .from("drill_attempts")
+    .select("image_url, submitted_text, ai1_response, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(10)
+
+  const returnData: Drill[] = []
+
+  if (data && data.length > 0) {
+    data.forEach((d) => {
+      const grading = d.ai1_response as GradingResult | null
+      const errorCount = Array.isArray(grading?.errors)
+        ? grading.errors.length
+        : 0
+      returnData.push({
+        url: d.image_url,
+        attemptDate: d.created_at,
+        submittedText: d.submitted_text ?? "",
+        gradingResult: grading,
+        numErrors: errorCount,
+      })
+    })
+  }
+
+  return returnData
+}
+
+async function getGuessStats(
+  supabase: SupabaseClient,
+  user: User,
+  twoWeeksPeriod: string,
+  oneWeekDate: Date
+): Promise<GuessStats> {
+  const { data, error } = await supabase
+    .from("ai2_queries")
+    .select("id, question_text, user_guess, revealed_answer, was_guess_correct, created_at")
+    .eq("user_id", user.id)
+    .gte("created_at", twoWeeksPeriod)
+    .order("created_at", { ascending: true }) // グラフ時系列順
+
+  if (error || !data || data.length === 0) {
+    return {
+      percent: 0,
+      lastWeekPercent: null,
+      diffPercent: null,
+      totalCount: 0,
+      lastWeekCount: 0,
+      correctCount: 0,
+      incorrectCount: 0,
+      skipCount: 0,
+      dailyTrend: [],
+      recentQueries: [],
+    }
+  }
+
+  const oneWeekTime = oneWeekDate.getTime()
+  let thisWeekTotal = 0
+  let thisWeekCorrect = 0
+  let thisWeekIncorrect = 0
+  let thisWeekSkip = 0
+
+  let lastWeekTotal = 0
+  let lastWeekCorrect = 0
+
+  const recentQueries: QueryHistoryItem[] = []
+  const dailyMap = new Map<string, { total: number; correct: number }>()
+
+  data.forEach((d) => {
+    const createdAt = new Date(d.created_at)
+    const itemTime = createdAt.getTime()
+
+    // 今週と先週の集計
+    if (itemTime >= oneWeekTime) {
+      thisWeekTotal++
+      if (d.was_guess_correct === true) {
+        thisWeekCorrect++
+      } else if (d.was_guess_correct === false) {
+        thisWeekIncorrect++
+      } else {
+        thisWeekSkip++
+      }
+    } else {
+      lastWeekTotal++
+      if (d.was_guess_correct === true) {
+        lastWeekCorrect++
+      }
+    }
+
+    // 質問ログ用（最新順にしたいので先頭に追加）
+    recentQueries.unshift({
+      id: d.id,
+      questionText: d.question_text,
+      userGuess: d.user_guess,
+      revealedAnswer: d.revealed_answer,
+      wasGuessCorrect: d.was_guess_correct,
+      createdAt: d.created_at,
+    })
+
+    // 日別集計 (記録がある日のみマップに登録)
+    const dateKey = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, "0")}-${String(createdAt.getDate()).padStart(2, "0")}`
+    const current = dailyMap.get(dateKey) || { total: 0, correct: 0 }
+    current.total++
+    if (d.was_guess_correct === true) {
+      current.correct++
+    }
+    dailyMap.set(dateKey, current)
+  })
+
+  // 記録がある日のみの配列（記録がない日は除外）
+  const dailyTrend: DailyAccuracyPoint[] = Array.from(dailyMap.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([dateKey, stats]) => {
+      const parts = dateKey.split("-")
+      const monthDay = `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`
+      const accuracy = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0
+      return {
+        date: monthDay,
+        fullDate: dateKey,
+        accuracy,
+        questions: stats.total,
+        correct: stats.correct,
+      }
+    })
+
+  const thisWeekPercent =
+    thisWeekTotal > 0 ? (thisWeekCorrect / thisWeekTotal) * 100.0 : 0
+  const lastWeekPercent =
+    lastWeekTotal > 0 ? (lastWeekCorrect / lastWeekTotal) * 100.0 : null
+  const diffPercent =
+    lastWeekPercent !== null
+      ? Math.round(thisWeekPercent - lastWeekPercent)
+      : null
+
+  return {
+    percent: thisWeekPercent,
+    lastWeekPercent,
+    diffPercent,
+    totalCount: thisWeekTotal,
+    lastWeekCount: lastWeekTotal,
+    correctCount: thisWeekCorrect,
+    incorrectCount: thisWeekIncorrect,
+    skipCount: thisWeekSkip,
+    dailyTrend,
+    recentQueries,
+  }
+}
+
+function getRecentActivity(
+  recentDrills: Drill[],
+  recentQueries: QueryHistoryItem[]
+): Activity {
+  const numOfDrillAttempts = recentDrills.length
+  const lastDrillAttemptDate =
+    recentDrills.length > 0 ? recentDrills[0].attemptDate : ""
+
+  const numOfQuestions = recentQueries.length
+  const lastQuestionDate =
+    recentQueries.length > 0 ? recentQueries[0].createdAt : ""
+
+  return {
+    numOfDrillAttempts,
+    lastDrillAttemptDate,
+    numOfQuestions,
+    lastQuestionDate,
+    recentDrillAttempts: recentDrills,
+    recentQueries,
+  }
+}
+
+async function getWeaknessFocus(
+  supabase: SupabaseClient,
+  user: User
+): Promise<WeakLabelCount[]> {
+  const { data: weakPoints } = await supabase
+    .from("weak_points")
+    .select("category, display_label, times_flagged")
+    .eq("user_id", user.id)
+
+  if (weakPoints && weakPoints.length > 0) {
+    const map = new Map<string, number>()
+    for (const w of weakPoints) {
+      const key = w.display_label ?? "その他文法"
+      if (w.category === "grammar") {
+        map.set(key, (map.get(key) ?? 0) + (w.times_flagged || 1))
+      } else {
+        map.set("単語・熟語等", (map.get("単語・熟語等") ?? 0) + (w.times_flagged || 1))
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([label, count]) => ({ label, count }))
+  }
+  return []
+}
+
+export default async function DashboardPage() {
+  const data: DashboardData = await getData()
+
+  return <DashboardView initialData={data} />
 }
