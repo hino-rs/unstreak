@@ -1,39 +1,35 @@
 import Link from "next/link"
 import { fredoka } from "@/lib/fonts"
 import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
 
 export default function MarketingPageLayout({children}: {children: React.ReactNode}) {
     return (
         <div className="">
-            <header className="border-b flex items-center justify-between px-6 py-4">
+            <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md flex items-center justify-between px-6 py-3">
                 <div className="flex items-center gap-2">
-                    <Link href="/dashboard"><div className={`${fredoka.className} text-3xl font-semibold tracking-tight text-violet-500`}>Unstreak</div></Link>
+                    <Link href="/"><div className={`${fredoka.className} text-2xl sm:text-3xl font-semibold tracking-tight text-violet-500`}>Unstreak</div></Link>
                 </div>
-                {/* 
-                <div className="flex items-center gap-6">
-                    <nav className="flex items-center gap-6">
-                        <a href="#" className="hover:text-gray-900">Products</a>
-                        <a href="#" className="hover:text-gray-900">Efficacy</a>
-                        <a href="#" className="hover:text-gray-900">Careers</a>
-                        <a href="#" className="hover:text-gray-900">Press</a>
-                        <a href="#" className="hover:text-gray-900">Blog</a>
-                        <a href="#" className="hover:text-gray-900">Contact</a>
-                    </nav>
-                    
-                    <SeparatorVertical />
-                    <div className="flex items-center gap-4">
-                        将来SNSなどをここに
-                    </div>
-                    
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <Button render={<Link href="/login" />} nativeButton={false} variant="ghost" size="sm">
+                        ログイン
+                    </Button>
+                    <Button render={<Link href="/signup" />} nativeButton={false} size="sm" className="bg-violet-600 text-white hover:bg-violet-600/90">
+                        無料ではじめる
+                    </Button>
                 </div>
-                */}
             </header>
             <main>
                 {children}
             </main>
             <Separator />
-            <footer className="flex">
-                
+            <footer className="px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+                <div className={`${fredoka.className} text-base text-slate-500`}>Unstreak</div>
+                <div className="flex items-center gap-4">
+                    <Link href="/login" className="hover:text-slate-600">ログイン</Link>
+                    <Link href="/signup" className="hover:text-slate-600">無料ではじめる</Link>
+                </div>
+                <div>&copy; {new Date().getFullYear()} Unstreak</div>
             </footer>
         </div>
     )
