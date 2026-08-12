@@ -3,6 +3,20 @@ import { createSupabaseClient } from "@/lib/supabase/server";
 import { gradeDescription, toConceptKey } from "@/lib/ai1";
 import type { GradingError } from "@/lib/ai1";
 
+// next.config.tsのimages.remotePatternsと同じ制約をサーバー側でも強制する
+const ALLOWED_IMAGE_HOSTS = new Set(["images.unsplash.com"]);
+const MAX_USER_TEXT_LENGTH = 4000;
+
+function isAllowedImageUrl(url: unknown): url is string {
+  if (typeof url !== "string") return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && ALLOWED_IMAGE_HOSTS.has(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 // weak_points.display_label用のラベル辞書
 const grammarPointLabels: Record<string, string> = {
   articles: "冠詞",
@@ -38,6 +52,13 @@ export async function POST(req: NextRequest) {
     }
     
     const { imageUrl, userText, photographerName, photographerUrl } = await req.json();
+
+    if (!isAllowedImageUrl(imageUrl)) {
+        return NextResponse.json({ error: "invalid imageUrl" }, { status: 400 });
+    }
+    if (typeof userText !== "string" || userText.length === 0 || userText.length > MAX_USER_TEXT_LENGTH) {
+        return NextResponse.json({ error: "invalid userText" }, { status: 400 });
+    }
 
     const grading = await gradeDescription(imageUrl, userText);
 

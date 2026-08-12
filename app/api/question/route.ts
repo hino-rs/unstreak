@@ -7,6 +7,20 @@ type QuestionRequest =
   | { mode: "answer"; question: string; guess: string }
   | { mode: "skip"; question: string };
 
+const MAX_FIELD_LENGTH = 500;
+
+function isValidQuestionRequest(body: unknown): body is QuestionRequest {
+  if (typeof body !== "object" || body === null) return false;
+  const b = body as Record<string, unknown>;
+  const isShortString = (v: unknown) =>
+    typeof v === "string" && v.length > 0 && v.length <= MAX_FIELD_LENGTH;
+
+  if (b.mode === "ask") return isShortString(b.text);
+  if (b.mode === "answer") return isShortString(b.question) && isShortString(b.guess);
+  if (b.mode === "skip") return isShortString(b.question);
+  return false;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createSupabaseClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -14,7 +28,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const body: QuestionRequest = await req.json();
+  const rawBody: unknown = await req.json();
+  if (!isValidQuestionRequest(rawBody)) {
+    return NextResponse.json({ error: "invalid request body" }, { status: 400 });
+  }
+  const body: QuestionRequest = rawBody;
 
   const promptText =
     body.mode === "ask"

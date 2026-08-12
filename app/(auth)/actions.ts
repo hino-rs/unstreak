@@ -30,7 +30,7 @@ export async function login(formData: FormData) {
     return redirect("/login?error=" + encodeURIComponent(error.message));
   }
 
-  console.log("ログイン成功:", data);
+  console.log("ログイン成功:", data.user?.id);
   return redirect(`/dashboard`);
 }
 
