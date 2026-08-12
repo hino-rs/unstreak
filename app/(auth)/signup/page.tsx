@@ -1,42 +1,57 @@
+import Link from "next/link";
 import { signup } from "../actions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { zenMaruGothic } from "@/lib/fonts";
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 border rounded-lg shadow-sm">
-      <h1 className="text-2xl font-bold mb-6">アカウント作成</h1>
+    <div className={`w-full max-w-md rounded-3xl border border-border/70 bg-white p-8 shadow-sm ${zenMaruGothic.className}`}>
+      <div className="text-xs font-semibold tracking-widest text-violet-500 uppercase mb-2">
+        はじめまして
+      </div>
+      <h1 className="text-2xl font-bold text-slate-900 mb-1">無料ではじめる</h1>
+      <p className="text-sm text-slate-400 mb-6">クレジットカード不要・1分で開始</p>
+
+      {error ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <form action={signup} className="flex flex-col gap-4">
-        <div>
-          <label htmlFor="signup-email" className="block text-sm font-medium mb-1">
-            Email
-          </label>
-          <input
-            type="email"
-            name="email"
-            id="signup-email"
-            required
-            className="w-full border px-3 py-2 rounded-md"
-          />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="signup-email">メールアドレス</Label>
+          <Input type="email" name="email" id="signup-email" required />
         </div>
 
-        <div>
-          <label htmlFor="signup-password" className="block text-sm font-medium mb-1">
-            Password
-          </label>
-          <input
-            type="password"
-            name="password"
-            id="signup-password"
-            required
-            className="w-full border px-3 py-2 rounded-md"
-          />
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="signup-password">パスワード</Label>
+          <Input type="password" name="password" id="signup-password" required />
         </div>
 
-        <Button type="submit" className="w-full mt-2">
-          登録
+        <Button
+          type="submit"
+          className="w-full mt-2 h-11 bg-violet-600 text-white hover:bg-violet-600/90"
+        >
+          アカウントを作成
         </Button>
       </form>
+
+      <p className="text-sm text-slate-500 text-center mt-6">
+        すでにアカウントをお持ちの方は{" "}
+        <Link href="/login" className="text-violet-600 font-medium hover:underline">
+          ログイン
+        </Link>
+      </p>
     </div>
   );
 }

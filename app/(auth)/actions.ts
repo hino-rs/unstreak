@@ -47,7 +47,7 @@ export async function signup(formData: FormData) {
 
   if (error) {
     console.error("登録エラー:", error.message);
-    return redirect("/login?error=" + encodeURIComponent(error.message));
+    return redirect("/signup?error=" + encodeURIComponent(error.message));
   }
 
   return redirect(`/dashboard`);
