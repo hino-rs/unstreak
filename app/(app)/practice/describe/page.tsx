@@ -336,6 +336,8 @@ export default function DescribePage() {
     const postData = {
       imageUrl: imageData.imageUrl,
       userText,
+      photographerName: imageData.photographerName,
+      photographerUrl: imageData.photographerUrl,
     }
 
     try {

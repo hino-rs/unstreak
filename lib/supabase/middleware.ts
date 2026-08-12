@@ -35,7 +35,8 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
 
     // 未ログインでログイン必須ページにアクセスしたらログイン画面へ飛ばす
-    if (!user && url.pathname.startsWith("/dashboard")) {
+    const protectedPaths = ["/dashboard", "/practice", "/review", "/settings"];
+    if (!user && protectedPaths.some((path) => url.pathname.startsWith(path))) {
         url.pathname = "/login";
         return NextResponse.redirect(url);
     }

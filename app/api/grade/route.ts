@@ -37,14 +37,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
     
-    const { imageUrl, userText } = await req.json();
+    const { imageUrl, userText, photographerName, photographerUrl } = await req.json();
 
     const grading = await gradeDescription(imageUrl, userText);
-    
+
     // 提出履歴を保存
     const { error: insertError } = await supabase.from("drill_attempts").insert({
         user_id: user.id,
         image_url: imageUrl,
+        image_photographer_name: photographerName ?? null,
+        image_photographer_url: photographerUrl ?? null,
         submitted_text: userText,
         ai1_response: grading,
     });
