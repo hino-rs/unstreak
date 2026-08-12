@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/server";
 import { gradeDescription, toConceptKey } from "@/lib/ai1";
 import type { GradingError } from "@/lib/ai1";
+import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
 
 // next.config.tsのimages.remotePatternsと同じ制約をサーバー側でも強制する
 const ALLOWED_IMAGE_HOSTS = new Set(["images.unsplash.com"]);
@@ -50,7 +51,15 @@ export async function POST(req: NextRequest) {
     if (error || !user) {
         return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
-    
+
+    const rateLimitResult = await checkRateLimit(user.id);
+    if (!rateLimitResult.success) {
+        return NextResponse.json(
+            { error: "too many requests" },
+            { status: 429, headers: { "Retry-After": String(rateLimitResult.retryAfterSeconds) } },
+        );
+    }
+
     const { imageUrl, userText, photographerName, photographerUrl } = await req.json();
 
     if (!isAllowedImageUrl(imageUrl)) {
@@ -60,7 +69,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "invalid userText" }, { status: 400 });
     }
 
-    const grading = await gradeDescription(imageUrl, userText);
+    let grading;
+    try {
+        grading = await withConcurrencyLock(user.id, () => gradeDescription(imageUrl, userText));
+    } catch (e) {
+        if (e instanceof ConcurrencyLimitError) {
+            return NextResponse.json({ error: "request already in progress" }, { status: 429 });
+        }
+        throw e;
+    }
 
     // 提出履歴を保存
     const { error: insertError } = await supabase.from("drill_attempts").insert({

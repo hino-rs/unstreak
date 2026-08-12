@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/server";
 import { askAi2, toConceptKeyFromLemma } from "@/lib/ai2";
+import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
 
 type QuestionRequest =
   | { mode: "ask"; text: string }
@@ -28,6 +29,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const rateLimitResult = await checkRateLimit(user.id);
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { error: "too many requests" },
+      { status: 429, headers: { "Retry-After": String(rateLimitResult.retryAfterSeconds) } },
+    );
+  }
+
   const rawBody: unknown = await req.json();
   if (!isValidQuestionRequest(rawBody)) {
     return NextResponse.json({ error: "invalid request body" }, { status: 400 });
@@ -41,7 +50,15 @@ export async function POST(req: NextRequest) {
         ? `質問: ${body.question}\n私の予想: ${body.guess}`
         : `質問: ${body.question}\n私の回答: (わからないので教えてほしい)`;
 
-  const result = await askAi2(promptText);
+  let result;
+  try {
+    result = await withConcurrencyLock(user.id, () => askAi2(promptText));
+  } catch (e) {
+    if (e instanceof ConcurrencyLimitError) {
+      return NextResponse.json({ error: "request already in progress" }, { status: 429 });
+    }
+    throw e;
+  }
 
   // guess_requiredはDBに書かず、クライアントに予想入力を促すだけ
   if (result.status === "guess_required") {
