@@ -35,7 +35,6 @@ interface HistoryItem {
 export function AiAssistantPanel() {
   const [question, setQuestion] = useState("");
   const [guess, setGuess] = useState("");
-  const [isSkip, setIsSkip] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [response, setResponse] = useState<Ai2Response | null>(null);
@@ -47,15 +46,12 @@ export function AiAssistantPanel() {
     const trimmedQuestion = question.trim();
     const trimmedGuess = guess.trim();
 
-    if (!trimmedQuestion || isLoading) return;
-    if (!isSkip && !trimmedGuess) return;
+    if (!trimmedQuestion || !trimmedGuess || isLoading) return;
 
     setIsLoading(true);
     setErrorText(null);
 
-    const payload = isSkip
-      ? { mode: "skip" as const, question: trimmedQuestion }
-      : { mode: "answer" as const, question: trimmedQuestion, guess: trimmedGuess };
+    const payload = { mode: "answer" as const, question: trimmedQuestion, guess: trimmedGuess };
 
     try {
       const res = await fetch("/api/question", {
@@ -75,7 +71,7 @@ export function AiAssistantPanel() {
         const newItem: HistoryItem = {
           id: Math.random().toString(36).substring(2, 9),
           question: trimmedQuestion,
-          userGuess: isSkip ? null : trimmedGuess,
+          userGuess: trimmedGuess,
           answer: data.answer,
           vocabLemma: data.vocab_lemma,
           wasGuessCorrect: data.was_guess_correct,
@@ -95,7 +91,6 @@ export function AiAssistantPanel() {
   const handleReset = () => {
     setQuestion("");
     setGuess("");
-    setIsSkip(false);
     setResponse(null);
     setErrorText(null);
   };
@@ -252,29 +247,14 @@ export function AiAssistantPanel() {
                   disabled={isLoading}
                   autoFocus
                 />
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-xs"
-                    onClick={() => {
-                      setIsSkip(true);
-                      handleSubmit({ preventDefault: () => {} } as any);
-                    }}
-                    disabled={isLoading}
-                  >
-                    わからない（答えを見る）
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    className="flex-1 bg-violet-600 hover:bg-violet-700 text-white text-xs"
-                    disabled={isLoading || !guess.trim()}
-                  >
-                    {isLoading ? <Loader2 className="size-3.5 animate-spin" /> : "送信"}
-                  </Button>
-                </div>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white text-xs"
+                  disabled={isLoading || !guess.trim()}
+                >
+                  {isLoading ? <Loader2 className="size-3.5 animate-spin" /> : "送信"}
+                </Button>
               </form>
             </div>
           )}
@@ -301,33 +281,22 @@ export function AiAssistantPanel() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-foreground">あなたの予想</label>
-              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-muted-foreground hover:text-foreground select-none">
-                <input
-                  type="checkbox"
-                  checked={isSkip}
-                  onChange={(e) => {
-                    setIsSkip(e.target.checked);
-                    if (e.target.checked) setGuess("");
-                  }}
-                  className="rounded border-border text-violet-600 focus:ring-violet-500 size-3.5"
-                />
-                わからない（スキップ）
-              </label>
+              <span className="text-[10px] text-muted-foreground font-normal">必須</span>
             </div>
             <Input
               type="text"
-              required={!isSkip}
-              placeholder={isSkip ? "スキップが選択されています" : "例: Desert (当てずっぽうでもOK)"}
+              required
+              placeholder="例: Desert (当てずっぽうでもOK)"
               value={guess}
               onChange={(e) => setGuess(e.target.value)}
-              disabled={isLoading || isSkip}
+              disabled={isLoading}
               className="text-xs"
             />
           </div>
 
           <Button
             type="submit"
-            disabled={isLoading || !question.trim() || (!isSkip && !guess.trim())}
+            disabled={isLoading || !question.trim() || !guess.trim()}
             className="w-full bg-violet-600 hover:bg-violet-700 text-white text-xs h-9 mt-1"
           >
             {isLoading ? (
