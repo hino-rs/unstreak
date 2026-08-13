@@ -54,6 +54,7 @@ export function AppShell({ user, children }: { user: User | null; children: Reac
                         <Link href="/practice/diary" onClick={() => setNavOpen(false)}><button className="text-left px-3 py-2 rounded hover:bg-gray-100 text-gray-400 flex items-center gap-1.5 w-full font-medium text-sm"><LockClosedIcon className="w-4 h-4" />日記</button></Link>
                         <Link href="/practice/topic" onClick={() => setNavOpen(false)}><button className="text-left px-3 py-2 rounded hover:bg-gray-100 text-gray-400 flex items-center gap-1.5 w-full font-medium text-sm"><LockClosedIcon className="w-4 h-4" />トピック説明</button></Link>
                         <Link href="/review" onClick={() => setNavOpen(false)}><button className="text-left px-3 py-2 rounded hover:bg-gray-100 w-full font-medium text-sm">振り返り</button></Link>
+                        <Link href="/training" onClick={() => setNavOpen(false)}><button className="text-left px-3 py-2 rounded hover:bg-gray-100 w-full font-medium text-sm">特訓</button></Link>
                         <Link href="/settings" onClick={() => setNavOpen(false)}><button className="text-left px-3 py-2 rounded hover:bg-gray-100 w-full font-medium text-sm">設定</button></Link>
                         <div className="mt-auto pt-4">
                             <UserIcon user={user} />
