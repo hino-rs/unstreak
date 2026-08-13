@@ -1,8 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import { Zap, Dumbbell, Target, CheckCircle2, ArrowRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 export type TrainingModeSummary = {
@@ -25,9 +26,21 @@ interface ModeCardProps {
   accentClassName: string
   summary: TrainingModeSummary
   emptyHint: string
+  href?: string
+  comingSoon?: boolean
 }
 
-function ModeCard({ icon: Icon, title, tagline, description, accentClassName, summary, emptyHint }: ModeCardProps) {
+function ModeCard({
+  icon: Icon,
+  title,
+  tagline,
+  description,
+  accentClassName,
+  summary,
+  emptyHint,
+  href,
+  comingSoon,
+}: ModeCardProps) {
   const hasContent = summary.conceptCount > 0
 
   return (
@@ -86,15 +99,24 @@ function ModeCard({ icon: Icon, title, tagline, description, accentClassName, su
         </div>
       )}
 
-      <div className="mt-auto pt-1 flex items-center justify-between gap-3">
-        <Button disabled className="cursor-not-allowed">
-          はじめる
-          <ArrowRight className="size-4" />
-        </Button>
-        <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">
-          近日公開
-        </Badge>
-      </div>
+      {comingSoon ? (
+        <div className="mt-auto pt-1 flex items-center justify-between gap-3">
+          <Button disabled className="cursor-not-allowed">
+            はじめる
+            <ArrowRight className="size-4" />
+          </Button>
+          <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">
+            近日公開
+          </Badge>
+        </div>
+      ) : hasContent && href ? (
+        <div className="mt-auto pt-1">
+          <Link href={href} className={cn(buttonVariants(), "w-full")}>
+            はじめる
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -131,19 +153,21 @@ export function TrainingView({ data }: { data: TrainingData }) {
             icon={Zap}
             title="サクッと"
             tagline="1〜2分"
-            description="語彙・冠詞・前置詞・活用など、形が1点に定まるものを素早く反復"
+            description="AI2に聞いた・AI1に拾われた語彙を、フラッシュカード形式で素早く反復"
             accentClassName="text-amber-500 bg-amber-500"
             summary={data.quick}
-            emptyHint="語彙・トークン系の弱点はまだありません"
+            emptyHint="語彙系の弱点はまだありません"
+            href="/training/quick"
           />
           <ModeCard
             icon={Dumbbell}
             title="しっかり"
             tagline="5分"
-            description="語順・比較・仮定法・受動態など、文の組み立てそのものを鍛える"
+            description="冠詞・時制・語順など、文法全般をAIとの対話でじっくり鍛える"
             accentClassName="text-violet-500 bg-violet-500"
             summary={data.focused}
-            emptyHint="構文系の弱点はまだありません"
+            emptyHint="文法系の弱点はまだありません"
+            comingSoon
           />
         </div>
       )}

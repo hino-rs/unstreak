@@ -1,31 +1,13 @@
 import { createSupabaseClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { TrainingView, type TrainingData, type TrainingModeSummary } from "./training-view"
+import { buildQuickQueue } from "@/lib/training/quick-queue"
 
 type WeakPointRow = {
   concept_key: string
   category: string
   display_label: string | null
   times_flagged: number
-}
-
-// 主形式(B)が文脈非依存の「形」だけで完結するgrammar_point。
-// present_perfect/modal_verbsは形はトークン単位だが、選択自体は文脈依存のため
-// 別途E/D形式を補助的に使う想定(docs/tokkun-design.md参照)。ここでは主形式基準でサクッとに含める。
-const QUICK_MODE_GRAMMAR_POINTS = new Set([
-  "articles",
-  "prepositions",
-  "past_tense",
-  "plural_agreement",
-  "subject_verb_agreement",
-  "present_perfect",
-  "modal_verbs",
-])
-
-function isQuickModeConcept(w: WeakPointRow): boolean {
-  if (w.category === "vocabulary") return true
-  const grammarPoint = w.concept_key.replace(/^grammar:/, "")
-  return QUICK_MODE_GRAMMAR_POINTS.has(grammarPoint)
 }
 
 function summarize(points: WeakPointRow[]): TrainingModeSummary {
@@ -58,13 +40,25 @@ async function getTrainingData(): Promise<TrainingData> {
   }
 
   const points = (weakPoints as WeakPointRow[]) ?? []
-  const quickPoints = points.filter(isQuickModeConcept)
-  const focusedPoints = points.filter((w) => !isQuickModeConcept(w))
+  // しっかり(文法)は語彙以外すべて。isQuickModeConceptの否定だと「卒業済み(times_flagged=0)の
+  // 語彙」まで拾ってしまうため、ここではcategoryだけで明示的に切り分ける。
+  const focusedPoints = points.filter((w) => w.category !== "vocabulary")
+
+  // サクッと(語彙)の件数は weak_points の行数ではなく、実際にキュー化できる件数で出す。
+  // ai2_queries側に有効な素材(プレースホルダ/引用形フィルタを通過するもの)が無い弱点は
+  // buildQuickQueueでもスキップされるため、ここでも同じ関数で揃えないと「件数はあるのに
+  // はじめると0件」という食い違いが起きる。
+  const quickItems = await buildQuickQueue(supabase, user.id, Number.POSITIVE_INFINITY)
+  const quickSummary: TrainingModeSummary = {
+    conceptCount: quickItems.length,
+    totalFlagged: quickItems.reduce((sum, item) => sum + item.timesFlagged, 0),
+    topLabels: quickItems.slice(0, 3).map((item) => item.displayLabel ?? item.conceptKey),
+  }
 
   return {
-    quick: summarize(quickPoints),
+    quick: quickSummary,
     focused: summarize(focusedPoints),
-    totalConceptCount: points.length,
+    totalConceptCount: quickSummary.conceptCount + focusedPoints.length,
   }
 }
 
