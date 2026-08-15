@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/server";
 import { askAi2, toConceptKeyFromLemma } from "@/lib/ai2";
 import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
+import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit, refundCredit } from "@/lib/credits";
 
 type QuestionRequest =
   | { mode: "ask"; text: string }
@@ -52,10 +53,25 @@ export async function POST(req: NextRequest) {
 
   let result;
   try {
-    result = await withConcurrencyLock(user.id, () => askAi2(promptText));
+    result = await withConcurrencyLock(user.id, async () => {
+      await consumeCredit(supabase, user.id, CREDIT_COSTS.question, "question");
+      try {
+        return await askAi2(promptText);
+      } catch (aiError) {
+        try {
+          await refundCredit(supabase, user.id, CREDIT_COSTS.question, "question_refund");
+        } catch (refundError) {
+          console.error("[question] refundCredit threw:", refundError);
+        }
+        throw aiError;
+      }
+    });
   } catch (e) {
     if (e instanceof ConcurrencyLimitError) {
       return NextResponse.json({ error: "request already in progress" }, { status: 429 });
+    }
+    if (e instanceof InsufficientCreditsError) {
+      return NextResponse.json({ error: "insufficient credits" }, { status: 402 });
     }
     throw e;
   }

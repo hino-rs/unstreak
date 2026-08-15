@@ -16,14 +16,44 @@ const ratelimit = redis
 
 export type RateLimitResult = { success: true } | { success: false; retryAfterSeconds: number };
 
-export async function checkRateLimit(userId: string): Promise<RateLimitResult> {
-  if (!ratelimit) return { success: true };
+async function checkLimit(limiter: Ratelimit | null, key: string): Promise<RateLimitResult> {
+  if (!limiter) return { success: true };
 
-  const { success, reset } = await ratelimit.limit(userId);
+  const { success, reset } = await limiter.limit(key);
   if (success) return { success: true };
 
   const retryAfterSeconds = Math.max(1, Math.ceil((reset - Date.now()) / 1000));
   return { success: false, retryAfterSeconds };
+}
+
+export async function checkRateLimit(userId: string): Promise<RateLimitResult> {
+  return checkLimit(ratelimit, userId);
+}
+
+// ログイン/サインアップ試行のブルートフォース対策。認証前なのでuser.idではなく
+// IPアドレス(+ログインはメールアドレス、アカウント単位の集中攻撃対策)をキーにする
+const authIpRatelimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, "60 s"),
+      prefix: "ratelimit-auth-ip",
+    })
+  : null;
+
+const authEmailRatelimit = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(5, "300 s"),
+      prefix: "ratelimit-auth-email",
+    })
+  : null;
+
+export async function checkAuthIpRateLimit(ip: string): Promise<RateLimitResult> {
+  return checkLimit(authIpRatelimit, ip);
+}
+
+export async function checkAuthEmailRateLimit(email: string): Promise<RateLimitResult> {
+  return checkLimit(authEmailRatelimit, email.toLowerCase());
 }
 
 const CONCURRENCY_LOCK_TTL_SECONDS = 30;

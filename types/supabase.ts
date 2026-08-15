@@ -72,6 +72,75 @@ export type Database = {
         }
         Relationships: []
       }
+      app_config: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      credit_balances: {
+        Row: {
+          credits: number
+          stripe_customer_id: string | null
+          stripe_subscription_status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          credits?: number
+          stripe_customer_id?: string | null
+          stripe_subscription_status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          credits?: number
+          stripe_customer_id?: string | null
+          stripe_subscription_status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      credit_transactions: {
+        Row: {
+          created_at: string
+          delta: number
+          id: string
+          reason: string
+          stripe_event_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delta: number
+          id?: string
+          reason: string
+          stripe_event_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delta?: number
+          id?: string
+          reason?: string
+          stripe_event_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       drill_attempts: {
         Row: {
           ai1_response: Json
@@ -182,6 +251,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_credit: {
+        Args: { p_amount: number; p_reason: string; p_user_id: string }
+        Returns: boolean
+      }
+      decrement_weak_point: {
+        Args: { p_concept_key: string; p_user_id: string }
+        Returns: undefined
+      }
+      grant_credit: {
+        Args: {
+          p_amount: number
+          p_reason: string
+          p_stripe_event_id?: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      refund_credit: {
+        Args: { p_amount: number; p_reason: string; p_user_id: string }
+        Returns: undefined
+      }
+      set_stripe_customer_id: {
+        Args: { p_stripe_customer_id: string; p_user_id: string }
+        Returns: undefined
+      }
       upsert_vocabulary_log: {
         Args: { p_lemma: string; p_part_of_speech: string; p_user_id: string }
         Returns: undefined

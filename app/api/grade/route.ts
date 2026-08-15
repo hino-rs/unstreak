@@ -3,6 +3,7 @@ import { createSupabaseClient } from "@/lib/supabase/server";
 import { gradeDescription, toConceptKey } from "@/lib/ai1";
 import type { GradingError } from "@/lib/ai1";
 import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
+import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit, refundCredit } from "@/lib/credits";
 
 // next.config.tsのimages.remotePatternsと同じ制約をサーバー側でも強制する
 const ALLOWED_IMAGE_HOSTS = new Set(["images.unsplash.com"]);
@@ -71,10 +72,25 @@ export async function POST(req: NextRequest) {
 
     let grading;
     try {
-        grading = await withConcurrencyLock(user.id, () => gradeDescription(imageUrl, userText));
+        grading = await withConcurrencyLock(user.id, async () => {
+            await consumeCredit(supabase, user.id, CREDIT_COSTS.grade, "grade");
+            try {
+                return await gradeDescription(imageUrl, userText);
+            } catch (aiError) {
+                try {
+                    await refundCredit(supabase, user.id, CREDIT_COSTS.grade, "grade_refund");
+                } catch (refundError) {
+                    console.error("[grade] refundCredit threw:", refundError);
+                }
+                throw aiError;
+            }
+        });
     } catch (e) {
         if (e instanceof ConcurrencyLimitError) {
             return NextResponse.json({ error: "request already in progress" }, { status: 429 });
+        }
+        if (e instanceof InsufficientCreditsError) {
+            return NextResponse.json({ error: "insufficient credits" }, { status: 402 });
         }
         throw e;
     }

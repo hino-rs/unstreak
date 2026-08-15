@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { unsplash } from "@/lib/unsplash";
 import { createSupabaseClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit } from "@/lib/credits";
 
 const QUERIES = [
   // 日常生活
@@ -80,6 +82,14 @@ export const GET = async () => {
         return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
+    const rateLimitResult = await checkRateLimit(user.id);
+    if (!rateLimitResult.success) {
+        return NextResponse.json(
+            { error: "too many requests" },
+            { status: 429, headers: { "Retry-After": String(rateLimitResult.retryAfterSeconds) } },
+        );
+    }
+
     const { data: seen, error: seenError } = await supabase
     .from("drill_attempts")
     .select("image_url")
@@ -110,6 +120,14 @@ export const GET = async () => {
         }
 
         if (!seenUrls.has(p.urls.regular)) {
+            try {
+                await consumeCredit(supabase, user.id, CREDIT_COSTS.nextImage, "next_image");
+            } catch (e) {
+                if (e instanceof InsufficientCreditsError) {
+                    return NextResponse.json({ error: "insufficient credits" }, { status: 402 });
+                }
+                throw e;
+            }
             return NextResponse.json({
                 imageUrl: p.urls.regular,
                 photographerName: p.user.name,

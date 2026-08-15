@@ -1,7 +1,33 @@
 "use server";
 
 import { createSupabaseClient } from "@/lib/supabase/server";
+import { checkAuthEmailRateLimit, checkAuthIpRateLimit } from "@/lib/rate-limit";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+
+async function getClientIp(): Promise<string | null> {
+  const h = await headers();
+  // x-vercel-forwarded-forはVercelのエッジが上書きする値でクライアントから偽装できない。
+  // x-forwarded-forは先頭の値をクライアントが自由に詐称できるため、フォールバック専用。
+  const vercelForwardedFor = h.get("x-vercel-forwarded-for");
+  if (vercelForwardedFor) return vercelForwardedFor.split(",")[0].trim();
+  const forwardedFor = h.get("x-forwarded-for");
+  if (forwardedFor) return forwardedFor.split(",")[0].trim();
+  const realIp = h.get("x-real-ip");
+  if (realIp) return realIp;
+  return null;
+}
+
+const TOO_MANY_ATTEMPTS_MESSAGE = "試行回数が多すぎます。しばらくしてから再度お試しください。";
+const MISSING_CREDENTIALS_MESSAGE = "メールアドレスとパスワードを入力してください。";
+
+async function checkAuthRateLimits(email: string): Promise<boolean> {
+  const ip = await getClientIp();
+  const checks = [checkAuthEmailRateLimit(email)];
+  if (ip) checks.push(checkAuthIpRateLimit(ip));
+  const results = await Promise.all(checks);
+  return results.every((r) => r.success);
+}
 
 export async function logout() {
   const supabase = await createSupabaseClient();
@@ -15,10 +41,18 @@ export async function logout() {
 }
 
 export async function login(formData: FormData) {
-  const supabase = await createSupabaseClient();
+  const email = formData.get("email");
+  const password = formData.get("password");
+  if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
+    return redirect("/login?error=" + encodeURIComponent(MISSING_CREDENTIALS_MESSAGE));
+  }
 
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const withinLimit = await checkAuthRateLimits(email);
+  if (!withinLimit) {
+    return redirect("/login?error=" + encodeURIComponent(TOO_MANY_ATTEMPTS_MESSAGE));
+  }
+
+  const supabase = await createSupabaseClient();
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -35,10 +69,18 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const supabase = await createSupabaseClient();
+  const email = formData.get("email");
+  const password = formData.get("password");
+  if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
+    return redirect("/signup?error=" + encodeURIComponent(MISSING_CREDENTIALS_MESSAGE));
+  }
 
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const withinLimit = await checkAuthRateLimits(email);
+  if (!withinLimit) {
+    return redirect("/signup?error=" + encodeURIComponent(TOO_MANY_ATTEMPTS_MESSAGE));
+  }
+
+  const supabase = await createSupabaseClient();
 
   const { data, error } = await supabase.auth.signUp({
     email,
