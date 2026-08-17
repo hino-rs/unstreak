@@ -174,6 +174,183 @@ export type Database = {
         }
         Relationships: []
       }
+      painting_attempts: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          credits_charged: number
+          id: string
+          image_url: string
+          painting_id: string
+          reveal_missed_labels: string[]
+          reveal_narrative: Json
+          reveal_noticed_labels: string[]
+          reveal_tour_page_bodies: string[]
+          round1_grading: Json
+          round1_text: string
+          round2_grading: Json | null
+          round2_text: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          credits_charged: number
+          id?: string
+          image_url: string
+          painting_id: string
+          reveal_missed_labels?: string[]
+          reveal_narrative: Json
+          reveal_noticed_labels?: string[]
+          reveal_tour_page_bodies?: string[]
+          round1_grading: Json
+          round1_text: string
+          round2_grading?: Json | null
+          round2_text?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          credits_charged?: number
+          id?: string
+          image_url?: string
+          painting_id?: string
+          reveal_missed_labels?: string[]
+          reveal_narrative?: Json
+          reveal_noticed_labels?: string[]
+          reveal_tour_page_bodies?: string[]
+          round1_grading?: Json
+          round1_text?: string
+          round2_grading?: Json | null
+          round2_text?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "painting_attempts_painting_id_fkey"
+            columns: ["painting_id"]
+            isOneToOne: false
+            referencedRelation: "paintings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      painting_noticeable_elements: {
+        Row: {
+          id: string
+          keywords: string[]
+          label: string
+          painting_id: string
+          position: number
+        }
+        Insert: {
+          id?: string
+          keywords?: string[]
+          label: string
+          painting_id: string
+          position: number
+        }
+        Update: {
+          id?: string
+          keywords?: string[]
+          label?: string
+          painting_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "painting_noticeable_elements_painting_id_fkey"
+            columns: ["painting_id"]
+            isOneToOne: false
+            referencedRelation: "paintings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      painting_tour_pages: {
+        Row: {
+          focus_x: number
+          focus_y: number
+          grounding_body: string
+          heading: string
+          id: string
+          painting_id: string
+          position: number
+          zoom: number
+        }
+        Insert: {
+          focus_x: number
+          focus_y: number
+          grounding_body: string
+          heading: string
+          id?: string
+          painting_id: string
+          position: number
+          zoom: number
+        }
+        Update: {
+          focus_x?: number
+          focus_y?: number
+          grounding_body?: string
+          heading?: string
+          id?: string
+          painting_id?: string
+          position?: number
+          zoom?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "painting_tour_pages_painting_id_fkey"
+            columns: ["painting_id"]
+            isOneToOne: false
+            referencedRelation: "paintings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paintings: {
+        Row: {
+          artist: string
+          background: string
+          created_at: string
+          id: string
+          image_url: string
+          intent: string
+          interpretations: string[]
+          slug: string
+          tier: number
+          title: string
+          year: string
+        }
+        Insert: {
+          artist: string
+          background: string
+          created_at?: string
+          id?: string
+          image_url: string
+          intent: string
+          interpretations?: string[]
+          slug: string
+          tier?: number
+          title: string
+          year: string
+        }
+        Update: {
+          artist?: string
+          background?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          intent?: string
+          interpretations?: string[]
+          slug?: string
+          tier?: number
+          title?: string
+          year?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

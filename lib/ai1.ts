@@ -45,7 +45,22 @@ export type GradingError = z.infer<typeof GradingErrorSchema>;
 
 const TOOL_NAME = 'submit_grading';
 
-export async function gradeDescription(imageUrl: string, userText: string): Promise<GradingResult> {
+// Anthropic側がtype:'url'でURLを直接フェッチできないホスト(Wikimedia Commons等、
+// リダイレクトを挟むホスト)向けに、呼び出し元でbase64化した画像も受け付ける
+export type ImageInput = string | { data: string; mediaType: string };
+
+function toImageSource(image: ImageInput): Anthropic.ImageBlockParam['source'] {
+  if (typeof image === 'string') {
+    return { type: 'url', url: image };
+  }
+  return {
+    type: 'base64',
+    media_type: image.mediaType as Anthropic.Base64ImageSource['media_type'],
+    data: image.data,
+  };
+}
+
+export async function gradeDescription(image: ImageInput, userText: string): Promise<GradingResult> {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 4096,
@@ -66,7 +81,7 @@ export async function gradeDescription(imageUrl: string, userText: string): Prom
       {
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'url', url: imageUrl } },
+          { type: 'image', source: toImageSource(image) },
           {
             type: 'text',
             text: `以下は画像の説明として書かれた英文です。文法・語彙の正しさを中心に添削してください。誤りがない場合は errors を空配列 [] にしてください。\n\n学習者の説明: ${userText}`,
@@ -111,4 +126,30 @@ export function toConceptKey(error: GradingError): string | null {
     return `vocab:${error.vocab_lemma.toLowerCase().trim()}`;
   }
   return null; // unnatural_phrasing / spelling は今回のプール対象外
+}
+
+// weak_points.display_label用のラベル辞書
+const grammarPointLabels: Record<string, string> = {
+  articles: '冠詞',
+  past_tense: '過去形',
+  present_perfect: '現在完了形',
+  prepositions: '前置詞',
+  plural_agreement: '単複の一致',
+  subject_verb_agreement: '主語と動詞の一致',
+  word_order: '語順',
+  comparatives: '比較表現',
+  conditionals: '仮定法・条件文',
+  modal_verbs: '助動詞',
+  passive_voice: '受動態',
+  other: 'その他文法',
+};
+
+export function toDisplayLabel(error: GradingError): string | null {
+  if (error.category === 'grammar' && error.grammar_point) {
+    return grammarPointLabels[error.grammar_point] ?? error.grammar_point;
+  }
+  if (error.category === 'vocabulary' && error.vocab_lemma) {
+    return error.vocab_lemma.toLowerCase().trim();
+  }
+  return null;
 }

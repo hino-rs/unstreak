@@ -6,6 +6,7 @@ export const CREDIT_COSTS = {
   grade: Number(process.env.CREDIT_COST_GRADE ?? 3),
   question: Number(process.env.CREDIT_COST_QUESTION ?? 1),
   nextImage: Number(process.env.CREDIT_COST_NEXT_IMAGE ?? 1),
+  reveal: Number(process.env.CREDIT_COST_REVEAL ?? 2),
 } as const;
 
 // Stripe Price ID -> 付与クレジット数。複数SKU(トップアップ階層追加など)に拡張可能

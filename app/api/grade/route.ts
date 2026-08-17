@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/server";
-import { gradeDescription, toConceptKey } from "@/lib/ai1";
+import { gradeDescription, toConceptKey, toDisplayLabel } from "@/lib/ai1";
 import type { GradingError } from "@/lib/ai1";
 import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
 import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit, refundCredit } from "@/lib/credits";
@@ -17,32 +17,6 @@ function isAllowedImageUrl(url: unknown): url is string {
   } catch {
     return false;
   }
-}
-
-// weak_points.display_label用のラベル辞書
-const grammarPointLabels: Record<string, string> = {
-  articles: "冠詞",
-  past_tense: "過去形",
-  present_perfect: "現在完了形",
-  prepositions: "前置詞",
-  plural_agreement: "単複の一致",
-  subject_verb_agreement: "主語と動詞の一致",
-  word_order: "語順",
-  comparatives: "比較表現",
-  conditionals: "仮定法・条件文",
-  modal_verbs: "助動詞",
-  passive_voice: "受動態",
-  other: "その他文法",
-};
-
-function toDisplayLabel(error: GradingError): string | null {
-    if (error.category === "grammar" && error.grammar_point) {
-        return grammarPointLabels[error.grammar_point] ?? error.grammar_point;
-    }
-    if (error.category === "vocabulary" && error.vocab_lemma) {
-        return error.vocab_lemma.toLowerCase().trim();
-    }
-    return null;
 }
 
 export async function POST(req: NextRequest) {
