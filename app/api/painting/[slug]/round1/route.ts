@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
             noticedText: ai3.noticedText,
             missedText: ai3.missedText,
             tourPages: factBase.tourPages.map((p, i) => ({
-              heading: p.heading,
+              heading: ai3.tourPageHeadings[i],
               focusX: p.focusX,
               focusY: p.focusY,
               zoom: p.zoom,

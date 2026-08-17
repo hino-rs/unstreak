@@ -25,6 +25,7 @@ export type Ai3Request = {
 export type Ai3Response = {
   noticedText: string | null;
   missedText: string | null;
+  tourPageHeadings: string[];
   tourPageBodies: string[];
 };
 
@@ -33,45 +34,57 @@ const Ai3ToolInputSchema = z.object({
     .string()
     .nullable()
     .describe(
-      "ユーザーがRound1で気づけた要素についての1文。気づけた要素が1つもない場合はnull"
+      "英語で、ユーザーがRound1で気づけた要素についての1文。気づけた要素が1つもない場合はnull"
     ),
   missed_text: z
     .string()
     .nullable()
     .describe(
-      "ユーザーがRound1で見落とした要素についての1文。見落とした要素が1つもない場合はnull"
+      "英語で、ユーザーがRound1で見落とした要素についての1文。見落とした要素が1つもない場合はnull"
+    ),
+  tour_page_headings: z
+    .array(z.string())
+    .describe(
+      "各ツアーページの英語の見出し。渡されたtour_pagesと同じ順序・同じ件数で返すこと"
     ),
   tour_page_bodies: z
     .array(z.string())
     .describe(
-      "各ツアーページの解説本文。渡されたtour_pagesと同じ順序・同じ件数で返すこと"
+      "各ツアーページの英語の解説本文。渡されたtour_pagesと同じ順序・同じ件数で返すこと"
     ),
 });
 
 const TOOL_NAME = "submit_curation";
 
 const SYSTEM_PROMPT = `あなたは英語学習アプリ「Unstreak」の絵画ドリルにおけるキュレーター(AI3)です。
+ユーザーは英語学習者なので、noticed_text・missed_text・tour_page_headings・tour_page_bodiesは
+**すべて英語**で書いてください(fact-baseは日本語で渡しますが、出力は英語です)。
 
 # 絶対的な制約: 事実の捏造禁止
 あなたが使ってよい事実は、これから渡すfact-base(background・intent・interpretations・各tour pageのgrounding_body)に
 書かれている内容だけです。新しい年代・人物名・地名・技法・エピソードなどを一切付け加えてはいけません。
-grounding_bodyに書かれている事実そのものを変更・削除してもいけません。
-あなたの仕事は、fact-baseの事実を保ったまま、ユーザーがRound1で書いた英文(気づけた要素/見落とした要素)に応じて
+grounding_bodyに書かれている事実そのものを翻訳以上に変更・削除してもいけません。
+あなたの仕事は、fact-baseの事実を保ったまま英訳しつつ、ユーザーがRound1で書いた英文(気づけた要素/見落とした要素)に応じて
 語り口・導入・強調点だけを調整することです。
+
+# 英文のレベル
+中〜上級の英語学習者向けです。平易すぎる英語にする必要はありません。むしろ構図・象徴・技法など
+絵画鑑賞ならではの語彙(例: symbolism, allegory, patron, composition, propaganda, idealize等)を
+自然な文脈の中で積極的に使ってください。ただし専門用語だけの羅列にせず、意味が文脈から推測できるように書くこと。
 
 # noticed_text / missed_text
 noticeableElementsのうち、noticed: trueの要素があれば、その要素名に触れながら
-「あなたが気づいた〇〇は、美術史家も指摘している点です」という趣旨の1文を日本語で書いてください。
+「あなたが気づいた〇〇は、美術史家も指摘している点です」という趣旨の1文を英語で書いてください。
 noticed: falseの要素があれば、その要素名に触れながら
-「△△は見落としがちなポイントです」という趣旨の1文を日本語で書いてください。
+「△△は見落としがちなポイントです」という趣旨の1文を英語で書いてください。
 該当する要素が1つもない側はnullにしてください。
 
-# tour_page_bodies
-渡された各tour_pageのheading・grounding_body・focusX/focusY/zoomはページ構成の骨格として固定です。
-あなたはgrounding_bodyの内容を保ったまま、日本語の解説文としてtour_page_bodiesに書き直してください。
+# tour_page_headings / tour_page_bodies
+渡された各tour_pageのfocusX/focusY/zoomはページ構成の骨格として固定です(見出し・座標はあなたが決めるものではありません)。
+heading・grounding_bodyの内容を保ったまま、英語のheadingとbodyとしてtour_page_headings・tour_page_bodiesに書き直してください。
 最後のページ(まとめ・解釈のページであることが多い)は、ユーザーのRound1の回答内容に軽く触れながら
 interpretations(複数の解釈)を紹介する書き方にしてください。
-tour_page_bodiesは渡されたtour_pagesと同じ順序・同じ件数で返してください。
+tour_page_headings・tour_page_bodiesはどちらも、渡されたtour_pagesと同じ順序・同じ件数で返してください。
 
 # 出力
 指定のツールのみを使って回答してください。それ以外のテキストは一切含めないこと。`;
@@ -131,13 +144,17 @@ ${req.round1Text}`;
 
   const parsed = Ai3ToolInputSchema.parse(rawInput);
 
-  if (parsed.tour_page_bodies.length !== req.tourPages.length) {
-    throw new Error("AI3がtour_page_bodiesの件数を誤って返しました");
+  if (
+    parsed.tour_page_bodies.length !== req.tourPages.length ||
+    parsed.tour_page_headings.length !== req.tourPages.length
+  ) {
+    throw new Error("AI3がtour_page_headings/tour_page_bodiesの件数を誤って返しました");
   }
 
   return {
     noticedText: parsed.noticed_text,
     missedText: parsed.missed_text,
+    tourPageHeadings: parsed.tour_page_headings,
     tourPageBodies: parsed.tour_page_bodies,
   };
 }
