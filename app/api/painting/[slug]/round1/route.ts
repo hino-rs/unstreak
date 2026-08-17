@@ -11,6 +11,7 @@ import {
 } from "@/lib/paintings";
 import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
 import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit, refundCredit } from "@/lib/credits";
+import { scoreToLabel, updateLevelScore } from "@/lib/level";
 
 const MAX_USER_TEXT_LENGTH = 4000;
 
@@ -45,6 +46,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "painting fact-base not found" }, { status: 500 });
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("level_score")
+    .eq("user_id", user.id)
+    .single();
+  const learnerLevel = scoreToLabel(profile?.level_score);
+
   const bundleCost = CREDIT_COSTS.grade * 2 + CREDIT_COSTS.reveal;
 
   let payload;
@@ -60,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
         const paintingImage = await fetchPaintingImageAsBase64(painting.imageUrl);
 
         const [round1, ai3] = await Promise.all([
-          gradeDescription(paintingImage, text),
+          gradeDescription(paintingImage, text, learnerLevel),
           curatePaintingReveal({
             title: painting.title,
             background: factBase.background,
@@ -72,6 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
             })),
             tourPages: factBase.tourPages,
             round1Text: text,
+            learnerLevel,
           }),
         ]);
 
@@ -130,6 +139,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     }
     throw e;
   }
+
+  updateLevelScore(supabase, user.id, payload.round1.level_estimate).catch((err) => {
+    console.error("[painting/round1] updateLevelScore failed:", err);
+  });
 
   // 弱点プールへの反映(既存 app/api/grade/route.ts と同じパターン)
   const seenKeys = new Set<string>();

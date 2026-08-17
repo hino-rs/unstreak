@@ -4,6 +4,7 @@ import { gradeDescription, toConceptKey, toDisplayLabel } from "@/lib/ai1";
 import type { GradingError } from "@/lib/ai1";
 import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
 import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit, refundCredit } from "@/lib/credits";
+import { scoreToLabel, updateLevelScore } from "@/lib/level";
 
 // next.config.tsのimages.remotePatternsと同じ制約をサーバー側でも強制する
 const ALLOWED_IMAGE_HOSTS = new Set(["images.unsplash.com"]);
@@ -44,12 +45,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "invalid userText" }, { status: 400 });
     }
 
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("level_score")
+        .eq("user_id", user.id)
+        .single();
+    const learnerLevel = scoreToLabel(profile?.level_score);
+
     let grading;
     try {
         grading = await withConcurrencyLock(user.id, async () => {
             await consumeCredit(supabase, user.id, CREDIT_COSTS.grade, "grade");
             try {
-                return await gradeDescription(imageUrl, userText);
+                return await gradeDescription(imageUrl, userText, learnerLevel);
             } catch (aiError) {
                 try {
                     await refundCredit(supabase, user.id, CREDIT_COSTS.grade, "grade_refund");
@@ -81,6 +89,10 @@ export async function POST(req: NextRequest) {
     if (insertError) {
         console.error("[grade] drill_atemts insert failed:", insertError);
     }
+
+    updateLevelScore(supabase, user.id, grading.level_estimate).catch((err) => {
+        console.error("[grade] updateLevelScore failed:", err);
+    });
 
     // 弱点プールへの反映
     // 同一提出内で同じconcept_keyが複数出ても1回分としてカウントする

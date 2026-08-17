@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { zenMaruGothic } from "@/lib/fonts";
+import { GRADE_BANDS, GRADE_BAND_LABELS } from "@/lib/level";
 
 export default async function SignupPage({
   searchParams,
@@ -36,6 +38,22 @@ export default async function SignupPage({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="signup-password">パスワード</Label>
           <Input type="password" name="password" id="signup-password" required />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="signup-grade-band">学年</Label>
+          <Select name="grade_band" required>
+            <SelectTrigger id="signup-grade-band" className="w-full">
+              <SelectValue placeholder="選択してください" />
+            </SelectTrigger>
+            <SelectContent>
+              {GRADE_BANDS.map((band) => (
+                <SelectItem key={band} value={band}>
+                  {GRADE_BAND_LABELS[band]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <Button

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { anthropic } from "@/lib/anthropic";
+import type { LevelLabel } from "@/lib/level";
 
 export type Ai3TourPageInput = {
   heading: string;
@@ -20,6 +21,7 @@ export type Ai3Request = {
   noticeableElements: Ai3NoticeableElementInput[];
   tourPages: Ai3TourPageInput[];
   round1Text: string;
+  learnerLevel: LevelLabel;
 };
 
 export type Ai3Response = {
@@ -56,7 +58,24 @@ const Ai3ToolInputSchema = z.object({
 
 const TOOL_NAME = "submit_curation";
 
-const SYSTEM_PROMPT = `あなたは英語学習アプリ「Unstreak」の絵画ドリルにおけるキュレーター(AI3)です。
+// 学習者レベル別の語彙難度パラグラフ。intermediateは元のハードコード文言をそのまま流用(挙動変化なし)
+const VOCAB_TIER_PARAGRAPH: Record<LevelLabel, string> = {
+  beginner: `# 英文のレベル
+初〜中級の英語学習者向けです。平易で短めの文を中心にしつつ、
+絵画鑑賞に必要な最低限の語彙(例: composition, symbol, scene)は使ってよいですが、
+専門用語(symbolism, allegory, patron等)は避けるか、文中で意味が分かるように説明を添えてください。`,
+  intermediate: `# 英文のレベル
+中〜上級の英語学習者向けです。平易すぎる英語にする必要はありません。むしろ構図・象徴・技法など
+絵画鑑賞ならではの語彙(例: symbolism, allegory, patron, composition, propaganda, idealize等)を
+自然な文脈の中で積極的に使ってください。ただし専門用語だけの羅列にせず、意味が文脈から推測できるように書くこと。`,
+  advanced: `# 英文のレベル
+上級の英語学習者向けです。絵画史・美術批評で使われる専門語彙(symbolism, allegory, patron,
+propaganda, idealize, iconography等)や複雑な構文(関係詞節、分詞構文、倒置等)を積極的に使い、
+ネイティブの美術批評に近い自然さ・情報密度を目指してください。`,
+};
+
+function buildSystemPrompt(learnerLevel: LevelLabel): string {
+  return `あなたは英語学習アプリ「Unstreak」の絵画ドリルにおけるキュレーター(AI3)です。
 ユーザーは英語学習者なので、noticed_text・missed_text・tour_page_headings・tour_page_bodiesは
 **すべて英語**で書いてください(fact-baseは日本語で渡しますが、出力は英語です)。
 
@@ -67,10 +86,7 @@ grounding_bodyに書かれている事実そのものを翻訳以上に変更・
 あなたの仕事は、fact-baseの事実を保ったまま英訳しつつ、ユーザーがRound1で書いた英文(気づけた要素/見落とした要素)に応じて
 語り口・導入・強調点だけを調整することです。
 
-# 英文のレベル
-中〜上級の英語学習者向けです。平易すぎる英語にする必要はありません。むしろ構図・象徴・技法など
-絵画鑑賞ならではの語彙(例: symbolism, allegory, patron, composition, propaganda, idealize等)を
-自然な文脈の中で積極的に使ってください。ただし専門用語だけの羅列にせず、意味が文脈から推測できるように書くこと。
+${VOCAB_TIER_PARAGRAPH[learnerLevel]}
 
 # noticed_text / missed_text
 noticeableElementsのうち、noticed: trueの要素があれば、その要素名に触れながら
@@ -88,6 +104,7 @@ tour_page_headings・tour_page_bodiesはどちらも、渡されたtour_pagesと
 
 # 出力
 指定のツールのみを使って回答してください。それ以外のテキストは一切含めないこと。`;
+}
 
 export async function curatePaintingReveal(req: Ai3Request): Promise<Ai3Response> {
   const userContent = `# 絵画のタイトル
@@ -121,7 +138,7 @@ ${req.round1Text}`;
       },
     ],
     tool_choice: { type: "tool", name: TOOL_NAME },
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(req.learnerLevel),
     messages: [{ role: "user", content: userContent }],
   });
 

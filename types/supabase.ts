@@ -355,16 +355,22 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string | null
+          grade_band: string | null
+          level_score: number | null
           user_id: string
         }
         Insert: {
           created_at?: string
           display_name?: string | null
+          grade_band?: string | null
+          level_score?: number | null
           user_id: string
         }
         Update: {
           created_at?: string
           display_name?: string | null
+          grade_band?: string | null
+          level_score?: number | null
           user_id?: string
         }
         Relationships: []
@@ -452,6 +458,10 @@ export type Database = {
       set_stripe_customer_id: {
         Args: { p_stripe_customer_id: string; p_user_id: string }
         Returns: undefined
+      }
+      update_level_score: {
+        Args: { p_alpha?: number; p_level_estimate: number; p_user_id: string }
+        Returns: number
       }
       upsert_vocabulary_log: {
         Args: { p_lemma: string; p_part_of_speech: string; p_user_id: string }

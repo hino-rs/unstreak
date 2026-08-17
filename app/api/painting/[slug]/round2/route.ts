@@ -4,6 +4,7 @@ import { gradeDescription, toConceptKey, toDisplayLabel } from "@/lib/ai1";
 import type { GradingError } from "@/lib/ai1";
 import { getPaintingSummaryBySlug, fetchPaintingImageAsBase64 } from "@/lib/paintings";
 import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
+import { scoreToLabel, updateLevelScore } from "@/lib/level";
 
 const MAX_USER_TEXT_LENGTH = 4000;
 
@@ -50,13 +51,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "round2 already submitted for this attempt" }, { status: 409 });
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("level_score")
+    .eq("user_id", user.id)
+    .single();
+  const learnerLevel = scoreToLabel(profile?.level_score);
+
   // Round2はRound1で前払い済みのためクレジット消費・返金は行わない。
   // 失敗した場合は同じattemptIdでそのまま再送できる(completed_atがnullのまま残る)
   let round2;
   try {
     round2 = await withConcurrencyLock(user.id, async () => {
       const paintingImage = await fetchPaintingImageAsBase64(attempt.image_url);
-      return gradeDescription(paintingImage, text);
+      return gradeDescription(paintingImage, text, learnerLevel);
     });
   } catch (e) {
     if (e instanceof ConcurrencyLimitError) {
@@ -74,6 +82,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   if (updateError) {
     console.error("[painting/round2] update failed:", updateError);
   }
+
+  updateLevelScore(supabase, user.id, round2.level_estimate).catch((err) => {
+    console.error("[painting/round2] updateLevelScore failed:", err);
+  });
 
   // 弱点プールへの反映(既存 app/api/grade/route.ts と同じパターン)
   const seenKeys = new Set<string>();

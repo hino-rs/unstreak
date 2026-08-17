@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from 'zod';
 import { anthropic } from "@/lib/anthropic";
+import type { LevelLabel } from "@/lib/level";
 
 const GradingErrorSchema = z.object({
   category: z
@@ -38,6 +39,15 @@ const GradingResultSchema = z.object({
     .describe('指摘する誤り一覧の配列。誤りがない場合は必ず空配列 [] を指定してください'),
   corrected_text: z.string().describe('ユーザーの英文を修正した全体の英文'),
   overall_comment: z.string().describe('1〜2文程度の日本語での総評・フィードバックコメント'),
+  // lib/level.ts の LevelLabel と値を一致させること(EWMAでlevel_scoreに畳み込む)
+  level_estimate: z
+    .enum(['beginner', 'intermediate', 'advanced'])
+    .describe(
+      '学習者の英語力を3段階で判定する。語彙の幅、文の複雑さ（節構造・接続表現の使用）、' +
+      '文の長さに対する誤りの密度から総合的に判断すること。誤りの有無だけで判断しないこと' +
+      '（誤りが少なくても平易な単文のみならbeginner寄り、誤りがあっても複雑な構文・幅広い語彙を' +
+      '使っていればintermediate/advanced寄りになりうる）。'
+    ),
 });
 
 export type GradingResult = z.infer<typeof GradingResultSchema>;
@@ -60,7 +70,18 @@ function toImageSource(image: ImageInput): Anthropic.ImageBlockParam['source'] {
   };
 }
 
-export async function gradeDescription(image: ImageInput, userText: string): Promise<GradingResult> {
+export async function gradeDescription(
+  image: ImageInput,
+  userText: string,
+  learnerLevel?: LevelLabel,
+): Promise<GradingResult> {
+  const levelInstruction = learnerLevel
+    ? `\n              - この学習者の推定レベルは「${learnerLevel}」です。corrected_text と各errorのexplanation_ja は、
+              このレベルに合わせた語彙・表現の複雑さにしてください（beginner: 平易な語彙・短い文優先、
+              advanced: より高度な語彙・自然な言い換えも許容）。ただし添削の正確さ・誤り検出は
+              レベルに関わらず一切妥協しないこと。`
+    : '';
+
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 4096,
@@ -76,7 +97,8 @@ export async function gradeDescription(image: ImageInput, userText: string): Pro
               - 誤りは1箇所につき1エントリとして、**すべて** errors に列挙する
               - 同じ文法項目の誤りが複数箇所にあれば、箇所ごとに別エントリにする
               - overall_comment で言及した誤りは、必ず対応するエントリが errors に存在すること
-              - 誤りが本当に1つもない場合に限り errors を [] にする`,
+              - 誤りが本当に1つもない場合に限り errors を [] にする
+              - level_estimate は誤りの有無ではなく、語彙・構文の複雑さと誤り密度から総合的に判定する${levelInstruction}`,
     messages: [
       {
         role: 'user',
@@ -111,6 +133,9 @@ export async function gradeDescription(image: ImageInput, userText: string): Pro
   const sanitizedInput = {
     ...rawInput,
     errors: Array.isArray(rawInput.errors) ? rawInput.errors : [],
+    level_estimate: ['beginner', 'intermediate', 'advanced'].includes(rawInput.level_estimate as string)
+      ? rawInput.level_estimate
+      : 'intermediate', // 判定不能時はEWMAを大きく振らせないよう中庸にフォールバック
   };
 
   // ランタイム検証しつつ型を確定させる。ここを通ればGradingResultとして安全に扱える

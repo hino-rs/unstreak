@@ -4,6 +4,7 @@ import { createSupabaseClient } from "@/lib/supabase/server";
 import { checkAuthEmailRateLimit, checkAuthIpRateLimit } from "@/lib/rate-limit";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { GRADE_BANDS, type GradeBand } from "@/lib/level";
 
 async function getClientIp(): Promise<string | null> {
   const h = await headers();
@@ -71,7 +72,12 @@ export async function login(formData: FormData) {
 export async function signup(formData: FormData) {
   const email = formData.get("email");
   const password = formData.get("password");
-  if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
+  const gradeBand = formData.get("grade_band");
+  if (
+    typeof email !== "string" || typeof password !== "string" ||
+    typeof gradeBand !== "string" || !email || !password ||
+    !GRADE_BANDS.includes(gradeBand as GradeBand)
+  ) {
     return redirect("/signup?error=" + encodeURIComponent(MISSING_CREDENTIALS_MESSAGE));
   }
 
@@ -85,6 +91,7 @@ export async function signup(formData: FormData) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
+    options: { data: { grade_band: gradeBand } },
   });
 
   if (error) {
