@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -35,11 +36,10 @@ export function UserIcon({ user }: { user: User }) {
           </Button>
         )}
       />
-      <DropdownMenuContent className="w-32">
+      <DropdownMenuContent className="w-40">
         <DropdownMenuGroup>
-          <DropdownMenuItem>プロフィール</DropdownMenuItem>
-          <DropdownMenuItem>請求</DropdownMenuItem>
-          <DropdownMenuItem>アカウント設定</DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/settings" />}>アカウント設定</DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/settings/billing" />}>請求</DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>

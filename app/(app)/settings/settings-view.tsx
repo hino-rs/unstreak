@@ -1,12 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { updateGradeBand } from "./actions"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { updateGradeBand, deleteAccount } from "./actions"
 import {
   GRADE_BANDS,
   GRADE_BAND_LABELS,
@@ -18,11 +29,13 @@ import {
 type SettingsViewProps = {
   gradeBand: GradeBand | null
   levelScore: number | null
+  deleteError?: string | null
 }
 
-export function SettingsView({ gradeBand, levelScore }: SettingsViewProps) {
+export function SettingsView({ gradeBand, levelScore, deleteError }: SettingsViewProps) {
   const [selectedGradeBand, setSelectedGradeBand] = useState<GradeBand | null>(gradeBand)
   const [saving, setSaving] = useState(false)
+  const [isDeleting, startDeleteTransition] = useTransition()
 
   async function handleSave() {
     if (!selectedGradeBand) return
@@ -36,6 +49,12 @@ export function SettingsView({ gradeBand, levelScore }: SettingsViewProps) {
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleDeleteAccount() {
+    startDeleteTransition(async () => {
+      await deleteAccount()
+    })
   }
 
   return (
@@ -86,6 +105,47 @@ export function SettingsView({ gradeBand, levelScore }: SettingsViewProps) {
       <Link href="/settings/billing" className="text-sm underline text-muted-foreground hover:text-foreground">
         クレジット・お支払い
       </Link>
+
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="text-destructive">退会</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {deleteError ? (
+            <p className="text-sm text-destructive">{deleteError}</p>
+          ) : null}
+          <p className="text-sm text-muted-foreground">
+            アカウントを削除すると、学習履歴・添削結果などすべてのデータが完全に削除され、元に戻すことはできません。
+          </p>
+          <AlertDialog>
+            <AlertDialogTrigger
+              render={(props) => (
+                <Button {...props} variant="destructive" className="w-fit">
+                  アカウントを削除する
+                </Button>
+              )}
+            />
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>本当に退会しますか?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  この操作は取り消せません。学習履歴・添削結果などすべてのデータが完全に削除されます。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>キャンセル</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={isDeleting}
+                  onClick={handleDeleteAccount}
+                >
+                  {isDeleting ? "削除中..." : "削除する"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
     </div>
   )
 }

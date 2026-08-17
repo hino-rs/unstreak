@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { zenMaruGothic } from "@/lib/fonts";
+import { ResendConfirmationButton } from "@/components/resend-confirmation-button";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; unconfirmed_email?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, message, unconfirmed_email: unconfirmedEmail } = await searchParams;
 
   return (
     <div className={`w-full max-w-md rounded-3xl border border-border/70 bg-white p-8 shadow-sm ${zenMaruGothic.className}`}>
@@ -20,10 +21,22 @@ export default async function LoginPage({
       </div>
       <h1 className="text-2xl font-bold text-slate-900 mb-6">ログイン</h1>
 
+      {message ? (
+        <Alert className="mb-4">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
+      ) : null}
+
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
+      ) : null}
+
+      {unconfirmedEmail ? (
+        <div className="mb-4">
+          <ResendConfirmationButton email={unconfirmedEmail} />
+        </div>
       ) : null}
 
       <form action={login} className="flex flex-col gap-4">
