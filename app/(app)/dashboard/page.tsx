@@ -10,8 +10,10 @@ import {
   type GuessStats,
   type QueryHistoryItem,
   type DailyAccuracyPoint,
+  type PaintingProgress,
 } from "./dashboard-view"
 import type { GradingResult } from "@/lib/ai1"
+import { getPaintingCatalog, getCompletedPaintingSlugs } from "@/lib/paintings"
 
 async function getData(): Promise<DashboardData> {
   const supabase = await createSupabaseClient()
@@ -32,11 +34,13 @@ async function getData(): Promise<DashboardData> {
   const oneWeekAgo = new Date()
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
-  const [recentDrillResults, guessStats, weaknessFocus] = await Promise.all([
-    getRecentDrillResults(supabase, user),
-    getGuessStats(supabase, user, twoWeeksStr, oneWeekAgo),
-    getWeaknessFocus(supabase, user),
-  ])
+  const [recentDrillResults, guessStats, weaknessFocus, paintingProgress] =
+    await Promise.all([
+      getRecentDrillResults(supabase, user),
+      getGuessStats(supabase, user, twoWeeksStr, oneWeekAgo),
+      getWeaknessFocus(supabase, user),
+      getPaintingProgress(supabase, user),
+    ])
 
   const recentActivity = getRecentActivity(
     recentDrillResults,
@@ -48,6 +52,29 @@ async function getData(): Promise<DashboardData> {
     recentActivity,
     weaknessFocus,
     recentDrillResults,
+    paintingProgress,
+  }
+}
+
+async function getPaintingProgress(
+  supabase: SupabaseClient,
+  user: User
+): Promise<PaintingProgress> {
+  const [catalog, completedSlugs] = await Promise.all([
+    getPaintingCatalog(supabase),
+    getCompletedPaintingSlugs(supabase, user.id),
+  ])
+  const completedSet = new Set(completedSlugs)
+
+  return {
+    completed: completedSlugs.length,
+    total: catalog.length,
+    paintings: catalog.map((p) => ({
+      slug: p.slug,
+      title: p.title,
+      imageUrl: p.imageUrl,
+      completed: completedSet.has(p.slug),
+    })),
   }
 }
 

@@ -17,6 +17,7 @@ import {
   Calendar,
   Layers,
   MessageSquare,
+  Palette,
 } from "lucide-react"
 import {
   Area,
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils"
 import { Marquee } from "@/components/ui/marquee"
 import { BentoGrid, BentoCard } from "@/components/ui/bento-grid"
 import { NumberTicker } from "@/components/ui/number-ticker"
+import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
@@ -98,11 +100,25 @@ export type Drill = {
   numErrors: number
 }
 
+export type PaintingProgressItem = {
+  slug: string
+  title: string
+  imageUrl: string
+  completed: boolean
+}
+
+export type PaintingProgress = {
+  completed: number
+  total: number
+  paintings: PaintingProgressItem[]
+}
+
 export type DashboardData = {
   guessStats: GuessStats
   recentActivity: Activity
   weaknessFocus: WeakLabelCount[]
   recentDrillResults: Drill[]
+  paintingProgress: PaintingProgress
 }
 
 const chartConfig = {
@@ -912,6 +928,7 @@ export function DashboardView({ initialData }: { initialData: DashboardData }) {
   const recentActivity = initialData.recentActivity
   const recentDrillResults = initialData.recentDrillResults
   const weaknessFocus = initialData.weaknessFocus
+  const paintingProgress = initialData.paintingProgress
 
   const displayDrills =
     recentDrillResults.length > 0 ? recentDrillResults : fallbackDrills
@@ -1224,11 +1241,73 @@ export function DashboardView({ initialData }: { initialData: DashboardData }) {
         </div>
       ),
     },
+    {
+      Icon: Palette,
+      name: "絵画ドリル",
+      description: "美術史の物語を読み解きながら英語で気づきを書く進捗です",
+      href: "/practice/painting",
+      cta: "絵画ドリルへ",
+      className: "col-span-3 md:col-span-3",
+      background: (
+        <div className="relative w-full flex items-center gap-4 py-1">
+          {/* Ambient Glow */}
+          <div className="absolute top-1/2 left-1/4 -translate-y-1/2 size-40 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="flex -space-x-3 relative z-10 shrink-0">
+            {paintingProgress.paintings.slice(0, 6).map((p, index) => (
+              <div
+                key={p.slug}
+                className={cn(
+                  "relative size-11 rounded-full overflow-hidden border-2 border-card shadow-xs shrink-0",
+                  !p.completed && "opacity-40 grayscale"
+                )}
+                style={{ zIndex: 6 - index }}
+              >
+                {/* Supabase Storageのホスト(環境で変わりうる)はnext.config.tsのremotePatternsに
+                    登録していないため、next/imageではなく素の<img>で表示する
+                    (painting-catalog-view.tsxと同じ方針) */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.imageUrl}
+                  alt={p.title}
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                {p.completed && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <CheckCircle2 className="size-4 text-white" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex-1 min-w-0 relative z-10 space-y-1.5">
+            <div className="flex items-baseline gap-1.5">
+              <NumberTicker
+                value={paintingProgress.completed}
+                className="text-2xl font-black text-foreground"
+              />
+              <span className="text-sm text-muted-foreground font-medium">
+                / {paintingProgress.total} 完了
+              </span>
+            </div>
+            <Progress
+              value={
+                paintingProgress.total > 0
+                  ? (paintingProgress.completed / paintingProgress.total) * 100
+                  : 0
+              }
+            />
+          </div>
+        </div>
+      ),
+    },
   ]
 
   return (
     <>
-      <div className="h-full w-full overflow-y-auto md:overflow-hidden p-4 md:p-6 flex flex-col max-w-7xl mx-auto">
+      <div className="h-full w-full overflow-y-auto p-4 md:p-6 flex flex-col max-w-7xl mx-auto">
         <BentoGrid>
           {features.map((feature, idx) => (
             <BentoCard key={idx} {...feature} />
