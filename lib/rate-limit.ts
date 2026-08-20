@@ -43,7 +43,7 @@ const authIpRatelimit = redis
 const authEmailRatelimit = redis
   ? new Ratelimit({
       redis,
-      limiter: Ratelimit.slidingWindow(5, "300 s"),
+      limiter: Ratelimit.slidingWindow(10, "600 s"),
       prefix: "ratelimit-auth-email",
     })
   : null;
