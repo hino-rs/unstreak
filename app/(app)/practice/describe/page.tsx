@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog"
 import type { GradingResult } from "@/lib/ai1"
 import { GradingResultCard } from "@/components/practice/grading-result-card"
+import { AiHint } from "@/components/practice/ai-hint"
+import { GradingProgressHint } from "@/components/practice/grading-progress-hint"
 import {
   AlertCircle,
   Sparkles,
@@ -352,6 +354,8 @@ export default function DescribePage() {
             />
           </div>
 
+          <AiHint />
+
           {/* カウンター & アクションバー */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
@@ -381,6 +385,8 @@ export default function DescribePage() {
               )}
             </Button>
           </div>
+
+          <GradingProgressHint loading={isLoading} />
         </form>
       </div>
 

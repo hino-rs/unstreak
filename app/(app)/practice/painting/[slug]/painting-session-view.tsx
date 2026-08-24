@@ -20,6 +20,8 @@ import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { cn } from "@/lib/utils"
 import type { GradingResult } from "@/lib/ai1"
 import { GradingResultCard } from "@/components/practice/grading-result-card"
+import { AiHint } from "@/components/practice/ai-hint"
+import { GradingProgressHint } from "@/components/practice/grading-progress-hint"
 import type { PaintingSummary } from "@/lib/paintings"
 
 type Step = "round1" | "reveal" | "round2" | "done"
@@ -217,6 +219,8 @@ export function PaintingSessionView({ painting }: { painting: PaintingSummary })
             className="text-sm leading-relaxed"
           />
 
+          <AiHint />
+
           {errorText && !grade1 && <ErrorBanner message={errorText} />}
 
           {grade1 ? (
@@ -234,23 +238,26 @@ export function PaintingSessionView({ painting }: { painting: PaintingSummary })
               </Button>
             </>
           ) : (
-            <Button
-              onClick={submitRound1}
-              disabled={!text1.trim() || grading}
-              className="w-full gap-1.5"
-            >
-              {grading ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  <span>AI1が添削中...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="size-3.5" />
-                  <span>提出する</span>
-                </>
-              )}
-            </Button>
+            <>
+              <Button
+                onClick={submitRound1}
+                disabled={!text1.trim() || grading}
+                className="w-full gap-1.5"
+              >
+                {grading ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>AI1が添削中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3.5" />
+                    <span>提出する</span>
+                  </>
+                )}
+              </Button>
+              <GradingProgressHint loading={grading} />
+            </>
           )}
         </div>
       )}
@@ -381,6 +388,8 @@ export function PaintingSessionView({ painting }: { painting: PaintingSummary })
             className="text-sm leading-relaxed"
           />
 
+          <AiHint />
+
           {errorText && !grade2 && <ErrorBanner message={errorText} />}
 
           {grade2 ? (
@@ -392,23 +401,26 @@ export function PaintingSessionView({ painting }: { painting: PaintingSummary })
               </Button>
             </>
           ) : (
-            <Button
-              onClick={submitRound2}
-              disabled={!text2.trim() || grading}
-              className="w-full gap-1.5"
-            >
-              {grading ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  <span>AI1が添削中...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="size-3.5" />
-                  <span>提出する</span>
-                </>
-              )}
-            </Button>
+            <>
+              <Button
+                onClick={submitRound2}
+                disabled={!text2.trim() || grading}
+                className="w-full gap-1.5"
+              >
+                {grading ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>AI1が添削中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3.5" />
+                    <span>提出する</span>
+                  </>
+                )}
+              </Button>
+              <GradingProgressHint loading={grading} />
+            </>
           )}
         </div>
       )}
