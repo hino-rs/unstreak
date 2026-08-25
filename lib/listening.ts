@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const MAX_LISTENING_TURNS_PER_SESSION = 24;
+// ウォームアップ(is_onboarding)シナリオはすぐ終わる短いセッションに固定する。
+// onboarding_stepごとに段階的に伸ばす(1: 自己紹介, 2: 買い物)
+const ONBOARDING_TURN_CAPS: Record<number, number> = { 1: 6, 2: 8 };
+const DEFAULT_ONBOARDING_MAX_TURNS = 6;
 
 export type ListeningTargetItem = { kind: "vocab" | "reduction"; value: string };
 
@@ -10,6 +14,8 @@ export type ListeningScenarioCatalogItem = {
   title: string;
   tier: number;
   situationBrief: string;
+  isOnboarding: boolean;
+  onboardingStep: number | null;
 };
 
 export type ListeningScenario = {
@@ -22,7 +28,22 @@ export type ListeningScenario = {
   targetReductions: string[];
   voiceAccent: string;
   baseRate: number;
+  isOnboarding: boolean;
+  onboardingStep: number | null;
 };
+
+// scenario.isOnboardingがfalseならMAX_LISTENING_TURNS_PER_SESSION、
+// trueならonboarding_stepに応じた短いターン上限を返す
+export function turnCapForScenario(scenario: {
+  isOnboarding: boolean;
+  onboardingStep: number | null;
+}): number {
+  if (!scenario.isOnboarding) return MAX_LISTENING_TURNS_PER_SESSION;
+  if (scenario.onboardingStep && ONBOARDING_TURN_CAPS[scenario.onboardingStep]) {
+    return ONBOARDING_TURN_CAPS[scenario.onboardingStep];
+  }
+  return DEFAULT_ONBOARDING_MAX_TURNS;
+}
 
 export type ListeningTurnType =
   | "utterance"
@@ -46,7 +67,7 @@ export async function getListeningScenarioCatalog(
 ): Promise<ListeningScenarioCatalogItem[]> {
   const { data, error } = await supabase
     .from("listening_scenarios")
-    .select("id, slug, title, tier, situation_brief")
+    .select("id, slug, title, tier, situation_brief, is_onboarding, onboarding_step")
     .order("tier", { ascending: true });
   if (error) throw error;
   return (data ?? []).map((s) => ({
@@ -55,6 +76,8 @@ export async function getListeningScenarioCatalog(
     title: s.title,
     tier: s.tier,
     situationBrief: s.situation_brief,
+    isOnboarding: s.is_onboarding,
+    onboardingStep: s.onboarding_step,
   }));
 }
 
@@ -70,11 +93,13 @@ function mapScenarioRow(row: any): ListeningScenario {
     targetReductions: (row.target_reductions ?? []) as string[],
     voiceAccent: row.voice_accent,
     baseRate: Number(row.base_rate),
+    isOnboarding: row.is_onboarding,
+    onboardingStep: row.onboarding_step,
   };
 }
 
 const SCENARIO_COLUMNS =
-  "id, slug, title, tier, situation_brief, target_vocab, target_reductions, voice_accent, base_rate";
+  "id, slug, title, tier, situation_brief, target_vocab, target_reductions, voice_accent, base_rate, is_onboarding, onboarding_step";
 
 export async function getListeningScenarioById(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,6 +129,24 @@ export async function getListeningScenarioBySlug(
   if (error) throw error;
   if (!data) return null;
   return mapScenarioRow(data);
+}
+
+export async function hasCompletedListeningScenario(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+  userId: string,
+  scenarioId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("listening_sessions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("scenario_id", scenarioId)
+    .eq("status", "completed")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
 }
 
 export async function getListeningTurns(
@@ -186,7 +229,8 @@ export const LISTENING_TIER_NUMBER: Record<ListeningTierBand, number> = {
 };
 
 export function scoreToListeningTier(score: number | null | undefined): ListeningTierBand {
-  const s = score ?? LISTENING_TIER_ANCHORS.tier2;
+  // 未設定(コールドスタート)は中間ではなく易しい側に倒す。初回はまず易しく、というセーフティ
+  const s = score ?? LISTENING_TIER_ANCHORS.tier1;
   if (s <= 2) return "tier1";
   if (s <= 4) return "tier2";
   return "tier3";

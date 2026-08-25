@@ -9,6 +9,9 @@ export type Ai4ScenarioInput = {
   situationBrief: string;
   targetVocab: string[];
   targetReductions: string[];
+  // ウォームアップ(is_onboarding)シナリオ用。trueの時は台本から自由に逸脱させず、
+  // 短く・平易に・ほぼ台本通りに固定する(揺らぎ機能をこのシナリオだけオフにする)
+  stayCloseToScript?: boolean;
 };
 
 export type Ai4HistoryTurn = {
@@ -75,12 +78,21 @@ function buildSystemPrompt(scenario: Ai4ScenarioInput, learnerLevel?: LevelLabel
 タイトル: ${scenario.title}
 状況: ${scenario.situationBrief}
 
-# 参考語彙・省略表現(あくまで出発点、縛られなくてよい)
+${
+  scenario.stayCloseToScript
+    ? `# 語彙・省略表現(このシナリオは初めて使う人向けの足慣らしです)
+target_vocab: ${scenario.targetVocab.join(", ") || "(なし)"}
+target_reductions: ${scenario.targetReductions.join(", ") || "(なし)"}
+このシナリオは初心者の最初の一歩です。**台本から逸脱せず**、上記のtarget_vocab付近の平易な語彙のみを使い、
+省略発音(gonna/wanna等)は一切使わないでください。1発話は1文・5〜8語程度に収め、短く明瞭に話してください。
+毎回同じような簡単なやり取りで構いません(バリエーションより分かりやすさを優先)。`
+    : `# 参考語彙・省略表現(あくまで出発点、縛られなくてよい)
 target_vocab: ${scenario.targetVocab.join(", ") || "(なし)"}
 target_reductions: ${scenario.targetReductions.join(", ") || "(なし)"}
 これらは会話のきっかけとして使ってよいですが、**同じシナリオでも毎回同じ流れ・同じセリフにならないように**、
 このリストにない自然な語彙・言い回し・展開も積極的に混ぜてください。話す内容・切り口を会話ごとに変えることを優先し、
-台本通りに進める必要はありません。
+台本通りに進める必要はありません。`
+}
 
 # target_items_used
 この発話でユーザーが聞き取りにくい可能性のある語彙・連結/省略発音(gonna, wanna, kinda等)を全て報告してください。

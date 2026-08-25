@@ -26,6 +26,7 @@ type ScenarioInfo = {
   situationBrief: string;
   voiceAccent: string;
   baseRate: number;
+  isOnboarding: boolean;
 };
 
 type SessionSummary = {
@@ -247,9 +248,24 @@ export function ListeningSessionView({
         <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4 text-center">
           <h1 className="text-lg font-bold text-foreground">{scenario.title}</h1>
           <p className="text-sm text-muted-foreground leading-relaxed">{scenario.situationBrief}</p>
-          <p className="text-xs text-muted-foreground/80">
-            音声が流れます。聞き取れなかったら、聞き返す一言も英語で入力しましょう。
-          </p>
+          {scenario.isOnboarding ? (
+            <div className="rounded-xl bg-muted/40 p-3 text-left space-y-1.5">
+              <p className="text-xs text-foreground leading-relaxed">
+                これは足慣らしです。まず音声が流れるので、聞こえた範囲で英語で返信してみましょう。
+              </p>
+              <p className="text-xs text-foreground leading-relaxed">
+                もし聞き取れなかったら、下にある「聞き取れなかった？」を押すと、聞き返す一言を英語で書けます
+                （&ldquo;Could you say that again?&rdquo; など）。書くとAIが繰り返したり、言い換えたりしてくれます。
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                このシナリオはクレジットを消費しません。何度でも試せます。
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/80">
+              音声が流れます。聞き取れなかったら、聞き返す一言も英語で入力しましょう。
+            </p>
+          )}
           <Button onClick={handleStart} className="gap-1.5">
             <Volume2 className="size-3.5" />
             <span>はじめる</span>

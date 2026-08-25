@@ -8,7 +8,7 @@ import {
   getListeningTurns,
   computeFailedClarificationStreak,
   turnAudioRate,
-  MAX_LISTENING_TURNS_PER_SESSION,
+  turnCapForScenario,
 } from "@/lib/listening";
 import { generateAi4Turn, sanitizeTargetItemsUsed } from "@/lib/ai4";
 
@@ -69,6 +69,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const userTurnType: "clarification_request" | "user_reply" =
     type === "clarification" ? "clarification_request" : "user_reply";
+  const turnCap = turnCapForScenario(scenario);
+  // ウォームアップ(is_onboarding)シナリオはクレジット消費なし
+  const turnCost = scenario.isOnboarding ? 0 : CREDIT_COSTS.listeningTurn;
 
   let payload;
   try {
@@ -76,11 +79,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // 排他ロック内で毎回取り直す(このユーザーのlistening_turns書き込みは全てこのロック配下で
       // 直列化されるため、ここで取得したturnsはturn_index採番・AI4への履歴渡しに安全に使える)
       const turns = await getListeningTurns(supabase, sessionId);
-      if (turns.length >= MAX_LISTENING_TURNS_PER_SESSION) {
+      if (turns.length >= turnCap) {
         return { turnCapReached: true as const };
       }
 
-      await consumeCredit(supabase, user.id, CREDIT_COSTS.listeningTurn, "listening_turn");
+      if (turnCost > 0) {
+        await consumeCredit(supabase, user.id, turnCost, "listening_turn");
+      }
       try {
         const nextIndex = turns.length;
         const lastAiTurn = [...turns].reverse().find((t) => t.role === "ai");
@@ -140,6 +145,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             situationBrief: scenario.situationBrief,
             targetVocab: scenario.targetVocab,
             targetReductions: scenario.targetReductions,
+            stayCloseToScript: scenario.isOnboarding,
           },
           history,
           incomingTurnType: type === "clarification" ? "user_clarification" : "user_reply",
@@ -180,10 +186,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           revealAllowed: newFailedStreak >= 2,
         };
       } catch (innerError) {
-        try {
-          await refundCredit(supabase, user.id, CREDIT_COSTS.listeningTurn, "listening_turn_refund");
-        } catch (refundError) {
-          console.error("[listening/turns] refundCredit threw:", refundError);
+        if (turnCost > 0) {
+          try {
+            await refundCredit(supabase, user.id, turnCost, "listening_turn_refund");
+          } catch (refundError) {
+            console.error("[listening/turns] refundCredit threw:", refundError);
+          }
         }
         throw innerError;
       }

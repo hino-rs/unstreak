@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/server";
 import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
 import {
+  getListeningScenarioById,
   getListeningTurns,
   computeClarificationRate,
   tierEstimateFromClarificationRate,
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: session, error: sessionError } = await supabase
     .from("listening_sessions")
-    .select("id, status, transcript_revealed")
+    .select("id, scenario_id, status, transcript_revealed")
     .eq("id", sessionId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -40,6 +41,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (session.status !== "active") {
     return NextResponse.json({ error: "session already completed" }, { status: 409 });
   }
+
+  const scenario = await getListeningScenarioById(supabase, session.scenario_id);
 
   let summary;
   try {
@@ -69,10 +72,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     throw e;
   }
 
-  const tierEstimate = tierEstimateFromClarificationRate(summary.clarificationRate);
-  updateListeningTierScore(supabase, user.id, tierEstimate).catch((err) => {
-    console.error("[listening/complete] updateListeningTierScore failed:", err);
-  });
+  // ウォームアップ(is_onboarding)セッションは意図的に簡単にしてあるため、
+  // 実力指標(listening_tier_score)には反映しない
+  if (!scenario?.isOnboarding) {
+    const tierEstimate = tierEstimateFromClarificationRate(summary.clarificationRate);
+    updateListeningTierScore(supabase, user.id, tierEstimate).catch((err) => {
+      console.error("[listening/complete] updateListeningTierScore failed:", err);
+    });
+  }
 
   return NextResponse.json({
     summary: {

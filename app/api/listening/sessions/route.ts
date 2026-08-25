@@ -43,10 +43,15 @@ export async function POST(req: NextRequest) {
   const learnerLevel = scoreToLabel(profile?.level_score);
   const tierAtStart = LISTENING_TIER_NUMBER[scoreToListeningTier(profile?.listening_tier_score)];
 
+  // ウォームアップ(is_onboarding)シナリオは初回の心理的ハードルを下げるためクレジット消費なし
+  const sessionCost = scenario.isOnboarding ? 0 : CREDIT_COSTS.listeningTurn;
+
   let payload;
   try {
     payload = await withConcurrencyLock(user.id, async () => {
-      await consumeCredit(supabase, user.id, CREDIT_COSTS.listeningTurn, "listening_session_start");
+      if (sessionCost > 0) {
+        await consumeCredit(supabase, user.id, sessionCost, "listening_session_start");
+      }
       try {
         const ai4 = await generateAi4Turn({
           scenario: {
@@ -54,6 +59,7 @@ export async function POST(req: NextRequest) {
             situationBrief: scenario.situationBrief,
             targetVocab: scenario.targetVocab,
             targetReductions: scenario.targetReductions,
+            stayCloseToScript: scenario.isOnboarding,
           },
           history: [],
           incomingTurnType: "session_start",
@@ -67,7 +73,7 @@ export async function POST(req: NextRequest) {
             user_id: user.id,
             scenario_id: scenario.id,
             tier_at_start: tierAtStart,
-            credits_charged: CREDIT_COSTS.listeningTurn,
+            credits_charged: sessionCost,
           })
           .select("id")
           .single();
@@ -99,14 +105,17 @@ export async function POST(req: NextRequest) {
             situationBrief: scenario.situationBrief,
             voiceAccent: scenario.voiceAccent,
             baseRate: scenario.baseRate,
+            isOnboarding: scenario.isOnboarding,
           },
           firstTurn: { id: turnRow.id as string, content: ai4.utteranceText, audioRate: scenario.baseRate },
         };
       } catch (innerError) {
-        try {
-          await refundCredit(supabase, user.id, CREDIT_COSTS.listeningTurn, "listening_session_start_refund");
-        } catch (refundError) {
-          console.error("[listening/sessions] refundCredit threw:", refundError);
+        if (sessionCost > 0) {
+          try {
+            await refundCredit(supabase, user.id, sessionCost, "listening_session_start_refund");
+          } catch (refundError) {
+            console.error("[listening/sessions] refundCredit threw:", refundError);
+          }
         }
         throw innerError;
       }

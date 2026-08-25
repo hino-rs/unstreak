@@ -64,6 +64,7 @@ export default async function ListeningSessionPage({
         situationBrief: scenario.situationBrief,
         voiceAccent: scenario.voiceAccent,
         baseRate: scenario.baseRate,
+        isOnboarding: scenario.isOnboarding,
       }}
       initialTurns={turns.map((t) => ({
         id: t.id,
