@@ -30,14 +30,17 @@ export type ListeningScenario = {
   baseRate: number;
   isOnboarding: boolean;
   onboardingStep: number | null;
+  maxTurns: number | null;
 };
 
-// scenario.isOnboardingがfalseならMAX_LISTENING_TURNS_PER_SESSION、
-// trueならonboarding_stepに応じた短いターン上限を返す
+// max_turnsが個別指定されていれば最優先。次にisOnboarding/onboardingStepの短い上限、
+// どちらもなければMAX_LISTENING_TURNS_PER_SESSION(通常シナリオのデフォルト)
 export function turnCapForScenario(scenario: {
   isOnboarding: boolean;
   onboardingStep: number | null;
+  maxTurns: number | null;
 }): number {
+  if (scenario.maxTurns) return scenario.maxTurns;
   if (!scenario.isOnboarding) return MAX_LISTENING_TURNS_PER_SESSION;
   if (scenario.onboardingStep && ONBOARDING_TURN_CAPS[scenario.onboardingStep]) {
     return ONBOARDING_TURN_CAPS[scenario.onboardingStep];
@@ -95,11 +98,12 @@ function mapScenarioRow(row: any): ListeningScenario {
     baseRate: Number(row.base_rate),
     isOnboarding: row.is_onboarding,
     onboardingStep: row.onboarding_step,
+    maxTurns: row.max_turns,
   };
 }
 
 const SCENARIO_COLUMNS =
-  "id, slug, title, tier, situation_brief, target_vocab, target_reductions, voice_accent, base_rate, is_onboarding, onboarding_step";
+  "id, slug, title, tier, situation_brief, target_vocab, target_reductions, voice_accent, base_rate, is_onboarding, onboarding_step, max_turns";
 
 export async function getListeningScenarioById(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
