@@ -15,6 +15,7 @@ import {
     FileText,
     ShieldCheck,
     Palette,
+    Headphones,
 } from "lucide-react";
 import {
     Sidebar,
@@ -36,6 +37,7 @@ const navItems = [
     { href: "/dashboard", label: "ホーム", icon: Home },
     { href: "/practice/describe", label: "画像説明ドリル", icon: ImageIcon },
     { href: "/practice/painting", label: "絵画ドリル", icon: Palette },
+    { href: "/practice/listening", label: "リスニング", icon: Headphones, locked: true },
     { href: "/practice/diary", label: "日記", icon: NotebookPen, locked: true },
     { href: "/practice/topic", label: "トピック説明", icon: MessagesSquare, locked: true },
     { href: "/review", label: "振り返り", icon: History },
