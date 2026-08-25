@@ -10,7 +10,7 @@ import {
   turnAudioRate,
   MAX_LISTENING_TURNS_PER_SESSION,
 } from "@/lib/listening";
-import { generateAi4Turn, filterTargetItemsUsed } from "@/lib/ai4";
+import { generateAi4Turn, sanitizeTargetItemsUsed } from "@/lib/ai4";
 
 const MAX_USER_TEXT_LENGTH = 1000;
 
@@ -109,10 +109,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             items.map((item) =>
               supabase.rpc("upsert_weak_point", {
                 p_user_id: user.id,
-                p_concept_key:
-                  item.kind === "vocab"
-                    ? `vocab:${item.value.toLowerCase().trim()}`
-                    : `reduction:${item.value.toLowerCase().trim()}`,
+                // lastAiTurn.targetItemsUsed は書き込み時に既にsanitizeTargetItemsUsedを通っている
+                // (小文字化・トリム済み)ため、ここでは再加工しない
+                p_concept_key: item.kind === "vocab" ? `vocab:${item.value}` : `reduction:${item.value}`,
                 p_category: item.kind,
                 p_display_label: item.value,
               })
@@ -146,7 +145,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           incomingTurnType: type === "clarification" ? "user_clarification" : "user_reply",
           learnerLevel,
         });
-        const targetItemsUsed = filterTargetItemsUsed(ai4.targetItemsUsed, scenario);
+        const targetItemsUsed = sanitizeTargetItemsUsed(ai4.targetItemsUsed);
         const aiTurnType = type === "clarification" ? "ai_clarification_response" : "utterance";
 
         const { data: aiTurnRow, error: aiTurnError } = await supabase

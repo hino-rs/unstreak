@@ -44,8 +44,10 @@ const Ai4TurnResponseSchema = z.object({
     .describe("あなたが次に話す英語1〜2文。書き起こしではなく、実際に声に出す自然な会話文"),
   target_items_used: z
     .array(Ai4TargetItemSchema)
+    .max(5)
     .describe(
-      "この発話で実際に使ったtarget_vocab/target_reductionsの項目のみを列挙する。使っていなければ空配列"
+      "この発話でユーザーが聞き取りにくい可能性のある語彙・連結/省略発音(gonna, wanna等)を全て列挙する。" +
+        "target_vocab/target_reductionsに入っているかどうかは問わない。使っていなければ空配列"
     ),
   clarification_strategy: z
     .enum(["repeat", "rephrase", "slow_down"])
@@ -61,7 +63,8 @@ const TOOL_NAME = "submit_ai4_turn";
 
 function buildSystemPrompt(scenario: Ai4ScenarioInput, learnerLevel?: LevelLabel): string {
   const levelInstruction = learnerLevel
-    ? `\n学習者の推定レベルは「${learnerLevel}」です。beginnerなら短く平易な文、advancedならより自然な速さ・情報密度で話してください。`
+    ? `\n学習者の推定レベルは「${learnerLevel}」です。beginnerなら短く平易な文、advancedならより自然な速さ・情報密度で話してください。` +
+      "変化をつける場合も、このレベル帯から大きく逸脱する語彙・構文には飛躍しないこと。"
     : "";
 
   return `あなたは英語学習アプリ「Unstreak」のリスニング機能における会話相手役(AI4)です。
@@ -72,12 +75,18 @@ function buildSystemPrompt(scenario: Ai4ScenarioInput, learnerLevel?: LevelLabel
 タイトル: ${scenario.title}
 状況: ${scenario.situationBrief}
 
-# 使ってよい語彙・省略表現
+# 参考語彙・省略表現(あくまで出発点、縛られなくてよい)
 target_vocab: ${scenario.targetVocab.join(", ") || "(なし)"}
 target_reductions: ${scenario.targetReductions.join(", ") || "(なし)"}
-これらは毎ターン無理に詰め込む必要はありません。自然な文脈で使えるときだけ使い、
-使った場合はtarget_items_usedにkind("vocab"または"reduction")とvalue(使った項目そのもの)を正確に列挙してください。
-使っていない項目を申告しないこと。
+これらは会話のきっかけとして使ってよいですが、**同じシナリオでも毎回同じ流れ・同じセリフにならないように**、
+このリストにない自然な語彙・言い回し・展開も積極的に混ぜてください。話す内容・切り口を会話ごとに変えることを優先し、
+台本通りに進める必要はありません。
+
+# target_items_used
+この発話でユーザーが聞き取りにくい可能性のある語彙・連結/省略発音(gonna, wanna, kinda等)を全て報告してください。
+target_vocab/target_reductionsに入っているかどうかは問いません。リストにない語彙・省略発音を使った場合でも、
+実際に使ったものは正直に申告してください(kindは"vocab"または"reduction"、valueは使った項目そのもの)。
+使っていなければ空配列にしてください。
 
 # 絶対的な制約
 - 文法の誤りを明示的に訂正しない。自然な会話を優先すること(添削は別の機能の役割です)
@@ -159,16 +168,23 @@ export async function generateAi4Turn(req: Ai4Request): Promise<Ai4Response> {
   };
 }
 
-// AI4の自己申告(target_items_used)をそのまま信用せず、シナリオに実在する項目だけに絞り込む。
-// matchNoticeableElements(lib/paintings.ts)と同じく、AIの判定材料をそのまま信頼しない姿勢を踏襲
-export function filterTargetItemsUsed(
-  items: ListeningTargetItem[],
-  scenario: { targetVocab: string[]; targetReductions: string[] }
-): ListeningTargetItem[] {
-  const vocabSet = new Set(scenario.targetVocab.map((v) => v.toLowerCase().trim()));
-  const reductionSet = new Set(scenario.targetReductions.map((v) => v.toLowerCase().trim()));
-  return items.filter((item) => {
+const MAX_ITEM_VALUE_LENGTH = 40;
+const MAX_ITEMS_PER_TURN = 5;
+
+// AI4はシナリオの台本(target_vocab/target_reductions)に縛られず自由に展開してよい設計にしたため、
+// ここでの検証はもう「固定リストへの一致チェック」ではない。自己申告をそのまま弱点プールに書き込んでも
+// 壊れたデータにならないための軽いサニタイズ(トリム・重複排除・長さ上限・件数上限)のみ行う
+export function sanitizeTargetItemsUsed(items: ListeningTargetItem[]): ListeningTargetItem[] {
+  const seen = new Set<string>();
+  const result: ListeningTargetItem[] = [];
+  for (const item of items) {
     const value = item.value.toLowerCase().trim();
-    return item.kind === "vocab" ? vocabSet.has(value) : reductionSet.has(value);
-  });
+    if (!value || value.length > MAX_ITEM_VALUE_LENGTH) continue;
+    const key = `${item.kind}:${value}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ kind: item.kind, value });
+    if (result.length >= MAX_ITEMS_PER_TURN) break;
+  }
+  return result;
 }

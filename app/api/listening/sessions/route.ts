@@ -4,7 +4,7 @@ import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/li
 import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit, refundCredit } from "@/lib/credits";
 import { scoreToLabel } from "@/lib/level";
 import { getListeningScenarioById, scoreToListeningTier, LISTENING_TIER_NUMBER } from "@/lib/listening";
-import { generateAi4Turn, filterTargetItemsUsed } from "@/lib/ai4";
+import { generateAi4Turn, sanitizeTargetItemsUsed } from "@/lib/ai4";
 
 export async function POST(req: NextRequest) {
   const supabase = await createSupabaseClient();
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
           incomingTurnType: "session_start",
           learnerLevel,
         });
-        const targetItemsUsed = filterTargetItemsUsed(ai4.targetItemsUsed, scenario);
+        const targetItemsUsed = sanitizeTargetItemsUsed(ai4.targetItemsUsed);
 
         const { data: session, error: sessionError } = await supabase
           .from("listening_sessions")
