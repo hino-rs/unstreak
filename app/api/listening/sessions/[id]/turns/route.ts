@@ -7,6 +7,7 @@ import {
   getListeningScenarioById,
   getListeningTurns,
   computeFailedClarificationStreak,
+  turnAudioRate,
   MAX_LISTENING_TURNS_PER_SESSION,
 } from "@/lib/listening";
 import { generateAi4Turn, filterTargetItemsUsed } from "@/lib/ai4";
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             content: ai4.utteranceText,
             turnType: aiTurnType,
             clarificationStrategy: ai4.clarificationStrategy,
+            audioRate: turnAudioRate(scenario.baseRate, ai4.clarificationStrategy),
           },
           revealAllowed: newFailedStreak >= 2,
         };

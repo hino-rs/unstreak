@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
             voiceAccent: scenario.voiceAccent,
             baseRate: scenario.baseRate,
           },
-          firstTurn: { id: turnRow.id as string, content: ai4.utteranceText },
+          firstTurn: { id: turnRow.id as string, content: ai4.utteranceText, audioRate: scenario.baseRate },
         };
       } catch (innerError) {
         try {

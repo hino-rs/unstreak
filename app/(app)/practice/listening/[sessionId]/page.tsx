@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase/server";
-import { getListeningScenarioById, getListeningTurns, computeFailedClarificationStreak } from "@/lib/listening";
+import {
+  getListeningScenarioById,
+  getListeningTurns,
+  computeFailedClarificationStreak,
+  turnAudioRate,
+} from "@/lib/listening";
 import { ListeningSessionView } from "./listening-session-view";
 
 export default async function ListeningSessionPage({
@@ -66,6 +71,7 @@ export default async function ListeningSessionPage({
         turnType: t.turnType,
         content: t.content,
         clarificationStrategy: t.clarificationStrategy,
+        audioRate: turnAudioRate(scenario.baseRate, t.clarificationStrategy),
       }))}
       initialRevealAllowed={computeFailedClarificationStreak(turns) >= 2}
       transcriptRevealed={session.transcript_revealed}

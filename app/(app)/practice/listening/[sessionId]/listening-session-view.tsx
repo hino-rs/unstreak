@@ -18,6 +18,7 @@ type Turn = {
   turnType: TurnType;
   content: string;
   clarificationStrategy: "repeat" | "rephrase" | "slow_down" | null;
+  audioRate?: number;
 };
 
 type ScenarioInfo = {
@@ -40,13 +41,17 @@ const CLARIFICATION_TEMPLATES = [
   "Could you speak a bit more slowly?",
 ];
 
-function speak(text: string, lang: string, rate: number) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = lang;
-  utterance.rate = rate;
-  window.speechSynthesis.speak(utterance);
+async function fetchTurnAudioUrl(text: string, rate: number): Promise<string> {
+  const res = await fetch("/api/listening/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, rate }),
+  });
+  if (!res.ok) {
+    throw new Error(`tts request failed: ${res.status}`);
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
 }
 
 export function ListeningSessionView({
@@ -75,18 +80,46 @@ export function ListeningSessionView({
   const [started, setStarted] = useState(false);
   const [done, setDone] = useState(status === "completed");
   const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [loadingAudioTurnId, setLoadingAudioTurnId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const audioCacheRef = useRef<Map<string, string>>(new Map());
+  const localIdCounterRef = useRef(0);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns]);
 
-  const playTurn = (content: string) => speak(content, scenario.voiceAccent, scenario.baseRate);
+  useEffect(() => {
+    audioElRef.current = new Audio();
+    const cache = audioCacheRef.current;
+    return () => {
+      cache.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
+
+  const playTurn = async (turn: Turn) => {
+    if (!audioElRef.current) return;
+    try {
+      let url = audioCacheRef.current.get(turn.id);
+      if (!url) {
+        setLoadingAudioTurnId(turn.id);
+        url = await fetchTurnAudioUrl(turn.content, turn.audioRate ?? scenario.baseRate);
+        audioCacheRef.current.set(turn.id, url);
+      }
+      audioElRef.current.src = url;
+      await audioElRef.current.play();
+    } catch {
+      setErrorText("音声の再生に失敗しました。もう一度お試しください。");
+    } finally {
+      setLoadingAudioTurnId(null);
+    }
+  };
 
   const handleStart = () => {
     setStarted(true);
     const lastAi = [...turns].reverse().find((t) => t.role === "ai");
-    if (lastAi) playTurn(lastAi.content);
+    if (lastAi) playTurn(lastAi);
   };
 
   const submitTurn = async () => {
@@ -112,8 +145,9 @@ export function ListeningSessionView({
       }
       const data = await res.json();
 
+      localIdCounterRef.current += 1;
       const userTurn: Turn = {
-        id: `local-${Date.now()}`,
+        id: `local-${localIdCounterRef.current}`,
         role: "user",
         turnType: wasClarification ? "clarification_request" : "user_reply",
         content: text,
@@ -134,10 +168,11 @@ export function ListeningSessionView({
         turnType: data.turn.turnType,
         content: data.turn.content,
         clarificationStrategy: data.turn.clarificationStrategy ?? null,
+        audioRate: data.turn.audioRate,
       };
       setTurns((prev) => [...prev, userTurn, aiTurn]);
       setRevealAllowed(data.revealAllowed);
-      playTurn(aiTurn.content);
+      playTurn(aiTurn);
     } catch {
       setErrorText("通信エラーが発生しました。もう一度お試しください。");
     } finally {
@@ -244,35 +279,48 @@ export function ListeningSessionView({
         className="max-h-[55vh] overflow-y-auto rounded-2xl border border-border/60 bg-muted/20 p-4"
       >
         <BubbleGroup>
-          {turns.map((turn) => (
-            <Bubble key={turn.id} align={turn.role === "ai" ? "start" : "end"}>
-              <BubbleContent>
-                {turn.role === "ai" && !revealed ? (
-                  <button
-                    type="button"
-                    onClick={() => playTurn(turn.content)}
-                    className="inline-flex items-center gap-1.5"
-                  >
-                    <Volume2 className="size-3.5" />
-                    <span>音声を再生</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <span>{turn.content}</span>
-                    {turn.role === "ai" && (
-                      <button
-                        type="button"
-                        onClick={() => playTurn(turn.content)}
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
-                      >
+          {turns.map((turn) => {
+            const isLoadingAudio = loadingAudioTurnId === turn.id;
+            return (
+              <Bubble key={turn.id} align={turn.role === "ai" ? "start" : "end"}>
+                <BubbleContent>
+                  {turn.role === "ai" && !revealed ? (
+                    <button
+                      type="button"
+                      onClick={() => playTurn(turn)}
+                      disabled={isLoadingAudio}
+                      className="inline-flex items-center gap-1.5"
+                    >
+                      {isLoadingAudio ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
                         <Volume2 className="size-3.5" />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </BubbleContent>
-            </Bubble>
-          ))}
+                      )}
+                      <span>音声を再生</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span>{turn.content}</span>
+                      {turn.role === "ai" && (
+                        <button
+                          type="button"
+                          onClick={() => playTurn(turn)}
+                          disabled={isLoadingAudio}
+                          className="shrink-0 text-muted-foreground hover:text-foreground"
+                        >
+                          {isLoadingAudio ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Volume2 className="size-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </BubbleContent>
+              </Bubble>
+            );
+          })}
         </BubbleGroup>
       </div>
 

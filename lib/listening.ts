@@ -146,6 +146,19 @@ export function computeFailedClarificationStreak(
   return streak;
 }
 
+const SLOW_DOWN_RATE_MULTIPLIER = 0.75;
+const MIN_TTS_RATE = 0.6;
+
+// AI4のclarification_strategyがslow_downの時だけ、シナリオ基準の話速から実際にTTSを落とす。
+// repeat/rephraseは(言い方は変わっても)通常速度のまま
+export function turnAudioRate(
+  baseRate: number,
+  clarificationStrategy: "repeat" | "rephrase" | "slow_down" | null
+): number {
+  if (clarificationStrategy !== "slow_down") return baseRate;
+  return Math.max(MIN_TTS_RATE, baseRate * SLOW_DOWN_RATE_MULTIPLIER);
+}
+
 // セッション完了時、聞き返し回数 / AIターン数。低いほど「聞き取れている」
 export function computeClarificationRate(
   turns: Pick<ListeningTurnRow, "role" | "turnType">[]
