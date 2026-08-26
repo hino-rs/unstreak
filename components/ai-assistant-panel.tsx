@@ -80,9 +80,9 @@ export function AiAssistantPanel() {
         };
         setHistory((prev) => [newItem, ...prev.slice(0, 9)]);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error("[AiAssistantPanel] submit error:", err);
-      setErrorText(err.message || "エラーが発生しました。もう一度お試しください。");
+      setErrorText(err instanceof Error ? err.message : "エラーが発生しました。もう一度お試しください。");
     } finally {
       setIsLoading(false);
     }

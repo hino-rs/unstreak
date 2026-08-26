@@ -52,8 +52,6 @@ export async function logout() {
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error("ログアウトエラー:", error.message);
-  } else {
-    console.log("ログアウトしました");
   }
   return redirect("/login");
 }
@@ -72,7 +70,7 @@ export async function login(formData: FormData) {
 
   const supabase = await createSupabaseClient();
 
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -86,7 +84,6 @@ export async function login(formData: FormData) {
     return redirect(`/login?${params.toString()}`);
   }
 
-  console.log("ログイン成功:", data.user?.id);
   return redirect(`/dashboard`);
 }
 

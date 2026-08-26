@@ -140,8 +140,10 @@ export async function getCompletedPaintingSlugs(
   if (error) throw error;
   const slugs = new Set<string>();
   for (const row of data ?? []) {
+    // supabase-jsの型推論は`paintings!inner(slug)`を配列として推論するが、
+    // inner joinのため実際は常に単一オブジェクトで返ってくる
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const slug = (row as any).paintings?.slug;
+    const slug = (row.paintings as any)?.slug;
     if (slug) slugs.add(slug);
   }
   return [...slugs];

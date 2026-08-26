@@ -148,9 +148,9 @@ export default function DescribePage() {
       setSessionCount((prev) => (prev === 0 ? 1 : prev + 1))
       // 画像取得完了と同時にタイマースタート
       restart()
-    } catch (err: any) {
+    } catch (err) {
       console.error("[DEBUG] Failed to fetch next image:", err)
-      setImageError(err.message || "画像を取得できませんでした")
+      setImageError(err instanceof Error ? err.message : "画像を取得できませんでした")
       reset()
     } finally {
       setIsImageLoading(false)
