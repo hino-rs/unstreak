@@ -26,6 +26,8 @@ export default function MarketingPageLayout({children}: {children: React.ReactNo
             <footer className="px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
                 <div className={`${fredoka.className} text-base text-slate-500`}>Unstreak</div>
                 <div className="flex items-center gap-4">
+                    <Link href="/terms" className="hover:text-slate-600">利用規約</Link>
+                    <Link href="/privacy" className="hover:text-slate-600">プライバシーポリシー</Link>
                     <Link href="/login" className="hover:text-slate-600">ログイン</Link>
                     <Link href="/signup" className="hover:text-slate-600">無料ではじめる</Link>
                 </div>
