@@ -82,6 +82,8 @@ export function ListeningSessionView({
   const [done, setDone] = useState(status === "completed");
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const [loadingAudioTurnId, setLoadingAudioTurnId] = useState<string | null>(null);
+  // その場限りのスクラッチメモ。保存はせず、リロード/セッション終了で消える
+  const [notes, setNotes] = useState<Record<string, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const audioCacheRef = useRef<Map<string, string>>(new Map());
@@ -298,38 +300,60 @@ export function ListeningSessionView({
           {turns.map((turn) => {
             const isLoadingAudio = loadingAudioTurnId === turn.id;
             return (
-              <Bubble key={turn.id} align={turn.role === "ai" ? "start" : "end"}>
+              <Bubble
+                key={turn.id}
+                align={turn.role === "ai" ? "start" : "end"}
+                className={turn.role === "ai" ? "sm:max-w-[90%]" : undefined}
+              >
                 <BubbleContent>
                   {turn.role === "ai" && !revealed ? (
-                    <button
-                      type="button"
-                      onClick={() => playTurn(turn)}
-                      disabled={isLoadingAudio}
-                      className="inline-flex items-center gap-1.5"
-                    >
-                      {isLoadingAudio ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Volume2 className="size-3.5" />
-                      )}
-                      <span>音声を再生</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => playTurn(turn)}
+                        disabled={isLoadingAudio}
+                        className="inline-flex items-center gap-1.5 shrink-0"
+                      >
+                        {isLoadingAudio ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Volume2 className="size-3.5" />
+                        )}
+                        <span>音声を再生</span>
+                      </button>
+                      <input
+                        type="text"
+                        value={notes[turn.id] ?? ""}
+                        onChange={(e) => setNotes((prev) => ({ ...prev, [turn.id]: e.target.value }))}
+                        placeholder="メモ(聞こえた単語など)"
+                        className="min-w-0 flex-1 rounded-md border border-border/60 bg-background/70 px-2 py-1 text-[11px] outline-none focus:border-primary"
+                      />
+                    </div>
                   ) : (
                     <div className="flex items-center gap-1.5">
                       <span>{turn.content}</span>
                       {turn.role === "ai" && (
-                        <button
-                          type="button"
-                          onClick={() => playTurn(turn)}
-                          disabled={isLoadingAudio}
-                          className="shrink-0 text-muted-foreground hover:text-foreground"
-                        >
-                          {isLoadingAudio ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Volume2 className="size-3.5" />
-                          )}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => playTurn(turn)}
+                            disabled={isLoadingAudio}
+                            className="shrink-0 text-muted-foreground hover:text-foreground"
+                          >
+                            {isLoadingAudio ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Volume2 className="size-3.5" />
+                            )}
+                          </button>
+                          <input
+                            type="text"
+                            value={notes[turn.id] ?? ""}
+                            onChange={(e) => setNotes((prev) => ({ ...prev, [turn.id]: e.target.value }))}
+                            placeholder="メモ"
+                            className="min-w-0 w-24 shrink-0 rounded-md border border-border/60 bg-background/70 px-2 py-1 text-[11px] outline-none focus:border-primary focus:w-32 transition-[width]"
+                          />
+                        </>
                       )}
                     </div>
                   )}
