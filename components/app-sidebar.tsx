@@ -37,7 +37,7 @@ const navItems = [
     { href: "/dashboard", label: "ホーム", icon: Home },
     { href: "/practice/describe", label: "画像説明ドリル", icon: ImageIcon },
     { href: "/practice/painting", label: "絵画ドリル", icon: Palette },
-    { href: "/practice/listening", label: "リスニング", icon: Headphones, locked: true },
+    { href: "/practice/listening", label: "リスニング", icon: Headphones },
     { href: "/practice/diary", label: "日記", icon: NotebookPen, locked: true },
     { href: "/practice/topic", label: "トピック説明", icon: MessagesSquare, locked: true },
     { href: "/review", label: "振り返り", icon: History },
@@ -80,17 +80,32 @@ export function AppSidebar({ user }: { user: User | null }) {
                             {navItems.map((item) => {
                                 const isActive =
                                     pathname === item.href || pathname?.startsWith(`${item.href}/`);
+                                if (item.locked) {
+                                    return (
+                                        <SidebarMenuItem key={item.href}>
+                                            <SidebarMenuButton
+                                                type="button"
+                                                disabled
+                                                aria-disabled="true"
+                                                tooltip={`${item.label}（近日公開）`}
+                                                className="cursor-not-allowed text-muted-foreground opacity-70"
+                                            >
+                                                <item.icon />
+                                                <span>{item.label}</span>
+                                                <Lock className="ml-auto size-3.5" />
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    );
+                                }
                                 return (
                                     <SidebarMenuItem key={item.href}>
                                         <SidebarMenuButton
                                             isActive={isActive}
                                             tooltip={item.label}
-                                            className={item.locked ? "text-muted-foreground" : undefined}
                                             render={<Link href={item.href} />}
                                         >
                                             <item.icon />
                                             <span>{item.label}</span>
-                                            {item.locked && <Lock className="ml-auto size-3.5" />}
                                         </SidebarMenuButton>
                                     </SidebarMenuItem>
                                 );

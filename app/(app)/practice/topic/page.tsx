@@ -1,7 +1,10 @@
+import { LockedFeature } from "@/components/locked-feature";
+
 export default function TopicPage() {
   return (
-    <div>
-      <p>トピック説明練習のページです</p>
-    </div>
-  )
+    <LockedFeature
+      title="トピック説明"
+      description="プロフィールに合わせたトピックを英語で説明する練習機能です。準備が整い次第公開します。"
+    />
+  );
 }
