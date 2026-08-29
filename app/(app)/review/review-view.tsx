@@ -2,9 +2,11 @@
 
 import { useMemo, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { RefreshCw, Sparkles, Target, AlertTriangle, CheckCircle2 } from "lucide-react"
+import Link from "next/link"
+import { RefreshCw, Sparkles, Target, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp, Minus, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import type { WeakPointTrend } from "@/lib/weak-point-trends"
 
 export type WeakPointLabel =
   | "冠詞"
@@ -101,11 +103,62 @@ function getCardSize(count: number, maxCount: number, rank: number): CardSize {
   return "small";
 }
 
-interface ReviewViewProps {
-  initialWeakPoints: WeakPoint[];
+// 週次トレンドの1弱点分のミニスパークライン(直近8週間、当該週はアクセント色で強調)
+function TrendSparkline({ weeklyCounts }: { weeklyCounts: number[] }) {
+  const max = Math.max(1, ...weeklyCounts);
+  return (
+    <div className="flex items-end gap-1 h-8">
+      {weeklyCounts.map((count, i) => {
+        const isCurrent = i === weeklyCounts.length - 1;
+        const heightPercent = Math.max(8, Math.round((count / max) * 100));
+        return (
+          <div
+            key={i}
+            className={`w-2 rounded-t-sm ${isCurrent ? "bg-blue-500 dark:bg-blue-400" : "bg-blue-200 dark:bg-blue-900/50"}`}
+            style={{ height: `${heightPercent}%` }}
+            title={`${i === weeklyCounts.length - 1 ? "今週" : `${weeklyCounts.length - 1 - i}週間前`}: ${count}回`}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
-export function ReviewView({ initialWeakPoints }: ReviewViewProps) {
+function WeakPointTrendRow({ trend }: { trend: WeakPointTrend }) {
+  const diff = trend.thisWeekCount - trend.lastWeekCount;
+  const DeltaIcon = diff < 0 ? TrendingDown : diff > 0 ? TrendingUp : Minus;
+  const deltaClassName =
+    diff < 0
+      ? "text-emerald-600 dark:text-emerald-400"
+      : diff > 0
+        ? "text-rose-600 dark:text-rose-400"
+        : "text-muted-foreground";
+
+  return (
+    <div className="flex items-center gap-4 rounded-xl border border-border/60 bg-card p-3.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold truncate">{trend.displayLabel}</p>
+        <p className="text-xs text-muted-foreground">累計 {trend.timesFlagged}回</p>
+      </div>
+      <TrendSparkline weeklyCounts={trend.weeklyCounts} />
+      <div className="text-right w-20 shrink-0">
+        <p className="text-lg font-bold tabular-nums">{trend.thisWeekCount}</p>
+        <p className={`text-xs flex items-center justify-end gap-0.5 ${deltaClassName}`}>
+          <DeltaIcon className="size-3" />
+          {diff === 0 ? "変化なし" : `${diff > 0 ? "+" : ""}${diff}`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+interface ReviewViewProps {
+  initialWeakPoints: WeakPoint[];
+  isPro: boolean;
+  trends: WeakPointTrend[];
+}
+
+export function ReviewView({ initialWeakPoints, isPro, trends }: ReviewViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -339,6 +392,39 @@ export function ReviewView({ initialWeakPoints }: ReviewViewProps) {
               );
             })}
           </div>
+        )}
+      </div>
+
+      {/* 週次トレンド(Pro限定) */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-base font-semibold tracking-tight">弱点の週次トレンド</h2>
+          <Badge variant="secondary" className="text-[11px] font-normal">Pro</Badge>
+        </div>
+
+        {isPro ? (
+          trends.length > 0 ? (
+            <div className="space-y-2.5">
+              {trends.map((trend) => (
+                <WeakPointTrendRow key={trend.conceptKey} trend={trend} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground bg-card/40">
+              まだトレンドを表示するデータがありません。ドリルを続けると週ごとの推移が見えてきます。
+            </div>
+          )
+        ) : (
+          <Link
+            href="/settings/billing"
+            className="flex items-center gap-3 rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground bg-card/40 hover:border-primary/40 hover:text-foreground transition-colors"
+          >
+            <Lock className="size-5 shrink-0" />
+            <span>
+              Proプランでは、上位の弱点が週ごとにどれだけ検出されているかの推移を確認できます。
+              <span className="text-primary font-medium ml-1">Proにアップグレード →</span>
+            </span>
+          </Link>
         )}
       </div>
     </div>
