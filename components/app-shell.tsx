@@ -20,14 +20,17 @@ import {
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AiAssistantPanel } from "@/components/ai-assistant-panel";
+import { CreditBalanceBadge } from "@/components/credit-balance-badge";
 import type { User } from "@supabase/supabase-js";
 
 export function AppShell({
     user,
+    credits,
     defaultSidebarOpen = true,
     children,
 }: {
     user: User | null;
+    credits: number | null;
     defaultSidebarOpen?: boolean;
     children: React.ReactNode;
 }) {
@@ -36,16 +39,19 @@ export function AppShell({
     return (
         <TooltipProvider>
             <SidebarProvider defaultOpen={defaultSidebarOpen}>
-                <AppSidebar user={user} />
+                <AppSidebar user={user} credits={credits} />
 
                 <SidebarInset>
-                    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/80 px-3 backdrop-blur-sm md:hidden">
+                    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/80 px-3 backdrop-blur-sm md:hidden">
                         <SidebarTrigger aria-label="ナビゲーションを開く" />
-                        <Link href="/dashboard">
+                        <Link href="/dashboard" className="min-w-0 flex-1">
                             <span className={`${fredoka.className} text-xl font-semibold tracking-tight text-violet-500`}>
                                 Unstreak
                             </span>
                         </Link>
+                        {credits !== null && (
+                            <CreditBalanceBadge initialCredits={credits} variant="compact" />
+                        )}
                         <Button
                             variant="ghost"
                             size="icon"

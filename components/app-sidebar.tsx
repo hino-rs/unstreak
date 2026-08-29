@@ -31,6 +31,7 @@ import {
     SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { UserIcon } from "@/components/user-icon";
+import { CreditBalanceBadge } from "@/components/credit-balance-badge";
 import type { User } from "@supabase/supabase-js";
 
 const navItems = [
@@ -50,7 +51,7 @@ const legalLinks = [
     { href: "/privacy", label: "プライバシーポリシー", icon: ShieldCheck },
 ];
 
-export function AppSidebar({ user }: { user: User | null }) {
+export function AppSidebar({ user, credits }: { user: User | null; credits: number | null }) {
     const pathname = usePathname();
 
     return (
@@ -134,6 +135,7 @@ export function AppSidebar({ user }: { user: User | null }) {
                             ))}
                         </SidebarMenu>
                         <SidebarSeparator />
+                        {credits !== null && <CreditBalanceBadge initialCredits={credits} />}
                         <div className="flex items-center gap-2 px-1 py-1 group-data-[collapsible=icon]:justify-center">
                             <UserIcon user={user} />
                             <span className="min-w-0 truncate text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">

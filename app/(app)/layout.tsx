@@ -8,8 +8,18 @@ export default async function AppPageLayout({ children }: { children: React.Reac
     const cookieStore = await cookies();
     const defaultSidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
+    let credits: number | null = null;
+    if (user) {
+        const { data: balance } = await supabase
+            .from("credit_balances")
+            .select("credits")
+            .eq("user_id", user.id)
+            .single();
+        credits = balance?.credits ?? 0;
+    }
+
     return (
-        <AppShell user={user} defaultSidebarOpen={defaultSidebarOpen}>
+        <AppShell user={user} credits={credits} defaultSidebarOpen={defaultSidebarOpen}>
             {children}
         </AppShell>
     );
