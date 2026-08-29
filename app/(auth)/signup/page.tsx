@@ -2,6 +2,7 @@ import Link from "next/link";
 import { signup } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,7 +38,7 @@ export default async function SignupPage({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="signup-password">パスワード</Label>
-          <Input type="password" name="password" id="signup-password" required />
+          <PasswordInput name="password" id="signup-password" required />
         </div>
 
         <div className="flex flex-col gap-1.5">

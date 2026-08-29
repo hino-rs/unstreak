@@ -2,6 +2,7 @@ import Link from "next/link";
 import { login } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { zenMaruGothic } from "@/lib/fonts";
@@ -47,7 +48,7 @@ export default async function LoginPage({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="login-password">パスワード</Label>
-          <Input type="password" name="password" id="login-password" required />
+          <PasswordInput name="password" id="login-password" required />
         </div>
 
         <Button
