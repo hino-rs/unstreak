@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PRICE_CREDIT_GRANTS } from "@/lib/credits";
+import { PRICE_CREDIT_GRANTS, PRICE_PLAN, type SubscriptionPlan } from "@/lib/credits";
 
 export async function POST(req: Request) {
   const body = await req.text(); // 生ボディ(署名検証に必須)
@@ -89,9 +89,20 @@ export async function POST(req: Request) {
       const userId = subscription.metadata?.supabase_user_id;
       if (!userId) break;
 
+      // 解約後(deleted)やダウングレード時、priceに対応するプランが無ければFree(null)に戻す
+      const priceId = subscription.items.data[0]?.price.id;
+      const plan: SubscriptionPlan | null =
+        event.type === "customer.subscription.deleted"
+          ? null
+          : (priceId ? PRICE_PLAN[priceId] : undefined) ?? null;
+
       const { error } = await admin
         .from("credit_balances")
-        .update({ stripe_subscription_status: subscription.status, updated_at: new Date().toISOString() })
+        .update({
+          stripe_subscription_status: subscription.status,
+          plan,
+          updated_at: new Date().toISOString(),
+        })
         .eq("user_id", userId);
       if (error) console.error("[stripe webhook] failed to sync subscription status:", error);
       break;

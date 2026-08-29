@@ -2,13 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 
-type CheckoutRequest = { mode: "subscription" | "topup" };
+type CheckoutRequest =
+  | { mode: "subscription"; plan: "standard" | "pro" }
+  | { mode: "topup"; pack: "small" | "medium" | "large" };
 
 function isValidCheckoutRequest(body: unknown): body is CheckoutRequest {
   if (typeof body !== "object" || body === null) return false;
   const b = body as Record<string, unknown>;
-  return b.mode === "subscription" || b.mode === "topup";
+  if (b.mode === "subscription") return b.plan === "standard" || b.plan === "pro";
+  if (b.mode === "topup") return b.pack === "small" || b.pack === "medium" || b.pack === "large";
+  return false;
 }
+
+const SUBSCRIPTION_PRICE_ENV: Record<"standard" | "pro", string> = {
+  standard: "STRIPE_PRICE_STANDARD_MONTHLY",
+  pro: "STRIPE_PRICE_PRO_MONTHLY",
+};
+
+const TOPUP_PRICE_ENV: Record<"small" | "medium" | "large", string> = {
+  small: "STRIPE_PRICE_TOPUP_SMALL",
+  medium: "STRIPE_PRICE_TOPUP_MEDIUM",
+  large: "STRIPE_PRICE_TOPUP_LARGE",
+};
 
 export async function POST(req: NextRequest) {
   const supabase = await createSupabaseClient();
@@ -45,8 +60,8 @@ export async function POST(req: NextRequest) {
 
   const priceId =
     mode === "subscription"
-      ? process.env.STRIPE_PRICE_SUBSCRIPTION_MONTHLY!
-      : process.env.STRIPE_PRICE_TOPUP!;
+      ? process.env[SUBSCRIPTION_PRICE_ENV[rawBody.plan]]!
+      : process.env[TOPUP_PRICE_ENV[rawBody.pack]]!;
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,

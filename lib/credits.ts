@@ -1,32 +1,46 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// アクション毎の消費クレジット数。金額未確定のためenv varで上書き可能にし、
-// デフォルト値のみコードに残す
+// アクション毎の消費クレジット数。question/nextImageは原価がほぼゼロかつ
+// 「質問する行為の心理的コストをゼロに保つ」というプロダクト設計思想上、無料化している。
+// 詳細はdocs/料金プラン設計.md参照
 export const CREDIT_COSTS = {
   grade: Number(process.env.CREDIT_COST_GRADE ?? 3),
-  question: Number(process.env.CREDIT_COST_QUESTION ?? 1),
-  nextImage: Number(process.env.CREDIT_COST_NEXT_IMAGE ?? 1),
+  question: Number(process.env.CREDIT_COST_QUESTION ?? 0),
+  nextImage: Number(process.env.CREDIT_COST_NEXT_IMAGE ?? 0),
   reveal: Number(process.env.CREDIT_COST_REVEAL ?? 2),
   listeningTurn: Number(process.env.CREDIT_COST_LISTENING_TURN ?? 1),
 } as const;
 
-// Stripe Price ID -> 付与クレジット数。複数SKU(トップアップ階層追加など)に拡張可能
-export const PRICE_CREDIT_GRANTS: Record<string, number> = {
-  ...(process.env.STRIPE_PRICE_SUBSCRIPTION_MONTHLY
-    ? {
-        [process.env.STRIPE_PRICE_SUBSCRIPTION_MONTHLY]: Number(
-          process.env.CREDIT_GRANT_SUBSCRIPTION_MONTHLY ?? 150
-        ),
-      }
-    : {}),
-  ...(process.env.STRIPE_PRICE_TOPUP
-    ? {
-        [process.env.STRIPE_PRICE_TOPUP]: Number(
-          process.env.CREDIT_GRANT_TOPUP ?? 100
-        ),
-      }
-    : {}),
+export type SubscriptionPlan = "standard" | "pro";
+
+type PriceEntry = { credits: number; plan?: SubscriptionPlan };
+
+function priceEntry(envKey: string, defaultCredits: number, plan?: SubscriptionPlan): Record<string, PriceEntry> {
+  const priceId = process.env[envKey];
+  if (!priceId) return {};
+  const credits = Number(process.env[`CREDIT_GRANT_${envKey.replace(/^STRIPE_PRICE_/, "")}`] ?? defaultCredits);
+  return { [priceId]: { credits, plan } };
+}
+
+// Stripe Price ID -> 付与クレジット数・プラン種別。docs/料金プラン設計.md参照
+const PRICE_TABLE: Record<string, PriceEntry> = {
+  ...priceEntry("STRIPE_PRICE_STANDARD_MONTHLY", 300, "standard"),
+  ...priceEntry("STRIPE_PRICE_PRO_MONTHLY", 700, "pro"),
+  ...priceEntry("STRIPE_PRICE_TOPUP_SMALL", 75),
+  ...priceEntry("STRIPE_PRICE_TOPUP_MEDIUM", 300),
+  ...priceEntry("STRIPE_PRICE_TOPUP_LARGE", 690),
 };
+
+export const PRICE_CREDIT_GRANTS: Record<string, number> = Object.fromEntries(
+  Object.entries(PRICE_TABLE).map(([priceId, entry]) => [priceId, entry.credits])
+);
+
+// サブスクのPrice ID -> プラン種別。トップアップのPriceは含まれない
+export const PRICE_PLAN: Record<string, SubscriptionPlan> = Object.fromEntries(
+  Object.entries(PRICE_TABLE)
+    .filter((entry): entry is [string, PriceEntry & { plan: SubscriptionPlan }] => entry[1].plan !== undefined)
+    .map(([priceId, entry]) => [priceId, entry.plan])
+);
 
 export class InsufficientCreditsError extends Error {
   constructor() {
@@ -42,6 +56,7 @@ export async function consumeCredit(
   amount: number,
   reason: string
 ): Promise<void> {
+  if (amount <= 0) return; // credit_transactions.delta <> 0 制約があるため0円消費は呼ばない
   const { data: ok, error } = await supabase.rpc("consume_credit", {
     p_user_id: userId,
     p_amount: amount,
@@ -58,6 +73,7 @@ export async function refundCredit(
   amount: number,
   reason: string
 ): Promise<void> {
+  if (amount <= 0) return;
   const { error } = await supabase.rpc("refund_credit", {
     p_user_id: userId,
     p_amount: amount,

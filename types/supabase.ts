@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.15"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -93,6 +88,7 @@ export type Database = {
       credit_balances: {
         Row: {
           credits: number
+          plan: string | null
           stripe_customer_id: string | null
           stripe_subscription_status: string | null
           updated_at: string
@@ -100,6 +96,7 @@ export type Database = {
         }
         Insert: {
           credits?: number
+          plan?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_status?: string | null
           updated_at?: string
@@ -107,6 +104,7 @@ export type Database = {
         }
         Update: {
           credits?: number
+          plan?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_status?: string | null
           updated_at?: string
@@ -173,6 +171,157 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      listening_scenarios: {
+        Row: {
+          base_rate: number
+          created_at: string
+          id: string
+          is_onboarding: boolean
+          max_turns: number | null
+          mode: string
+          noise_profile: string
+          onboarding_step: number | null
+          situation_brief: string
+          slug: string
+          target_reductions: Json
+          target_vocab: Json
+          tier: number
+          title: string
+          voice_accent: string
+        }
+        Insert: {
+          base_rate?: number
+          created_at?: string
+          id?: string
+          is_onboarding?: boolean
+          max_turns?: number | null
+          mode?: string
+          noise_profile?: string
+          onboarding_step?: number | null
+          situation_brief: string
+          slug: string
+          target_reductions?: Json
+          target_vocab?: Json
+          tier: number
+          title: string
+          voice_accent?: string
+        }
+        Update: {
+          base_rate?: number
+          created_at?: string
+          id?: string
+          is_onboarding?: boolean
+          max_turns?: number | null
+          mode?: string
+          noise_profile?: string
+          onboarding_step?: number | null
+          situation_brief?: string
+          slug?: string
+          target_reductions?: Json
+          target_vocab?: Json
+          tier?: number
+          title?: string
+          voice_accent?: string
+        }
+        Relationships: []
+      }
+      listening_sessions: {
+        Row: {
+          clarification_rate: number | null
+          completed_at: string | null
+          created_at: string
+          credits_charged: number
+          id: string
+          scenario_id: string
+          status: string
+          tier_at_start: number
+          transcript_revealed: boolean
+          transcript_revealed_at: string | null
+          user_id: string
+        }
+        Insert: {
+          clarification_rate?: number | null
+          completed_at?: string | null
+          created_at?: string
+          credits_charged?: number
+          id?: string
+          scenario_id: string
+          status?: string
+          tier_at_start: number
+          transcript_revealed?: boolean
+          transcript_revealed_at?: string | null
+          user_id: string
+        }
+        Update: {
+          clarification_rate?: number | null
+          completed_at?: string | null
+          created_at?: string
+          credits_charged?: number
+          id?: string
+          scenario_id?: string
+          status?: string
+          tier_at_start?: number
+          transcript_revealed?: boolean
+          transcript_revealed_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listening_sessions_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "listening_scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listening_turns: {
+        Row: {
+          clarification_strategy: string | null
+          content: string
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+          target_items_used: Json
+          turn_index: number
+          turn_type: string
+          user_id: string
+        }
+        Insert: {
+          clarification_strategy?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          session_id: string
+          target_items_used?: Json
+          turn_index: number
+          turn_type: string
+          user_id: string
+        }
+        Update: {
+          clarification_strategy?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+          target_items_used?: Json
+          turn_index?: number
+          turn_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listening_turns_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "listening_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       painting_attempts: {
         Row: {
@@ -360,6 +509,7 @@ export type Database = {
           display_name: string | null
           grade_band: string | null
           level_score: number | null
+          listening_tier_score: number | null
           user_id: string
         }
         Insert: {
@@ -367,6 +517,7 @@ export type Database = {
           display_name?: string | null
           grade_band?: string | null
           level_score?: number | null
+          listening_tier_score?: number | null
           user_id: string
         }
         Update: {
@@ -374,6 +525,7 @@ export type Database = {
           display_name?: string | null
           grade_band?: string | null
           level_score?: number | null
+          listening_tier_score?: number | null
           user_id?: string
         }
         Relationships: []
@@ -464,6 +616,10 @@ export type Database = {
       }
       update_level_score: {
         Args: { p_alpha?: number; p_level_estimate: number; p_user_id: string }
+        Returns: number
+      }
+      update_listening_tier_score: {
+        Args: { p_alpha?: number; p_tier_estimate: number; p_user_id: string }
         Returns: number
       }
       upsert_vocabulary_log: {
@@ -614,3 +770,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

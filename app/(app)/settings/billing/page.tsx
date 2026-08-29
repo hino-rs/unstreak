@@ -9,7 +9,7 @@ export default async function BillingPage() {
 
   const { data: balance } = await supabase
     .from("credit_balances")
-    .select("credits, stripe_subscription_status")
+    .select("credits, stripe_subscription_status, plan")
     .eq("user_id", user.id)
     .single();
 
@@ -24,6 +24,7 @@ export default async function BillingPage() {
     <BillingView
       credits={balance?.credits ?? 0}
       subscriptionStatus={balance?.stripe_subscription_status ?? null}
+      plan={(balance?.plan as "standard" | "pro" | null) ?? null}
       transactions={transactions ?? []}
     />
   );

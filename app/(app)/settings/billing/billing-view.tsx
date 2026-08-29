@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,9 +22,12 @@ type Transaction = {
   created_at: string
 }
 
+type Plan = "standard" | "pro"
+
 type BillingViewProps = {
   credits: number
   subscriptionStatus: string | null
+  plan: Plan | null
   transactions: Transaction[]
 }
 
@@ -35,22 +38,35 @@ const subscriptionLabel: Record<string, string> = {
   incomplete: "未完了",
 }
 
-export function BillingView({ credits, subscriptionStatus, transactions }: BillingViewProps) {
-  const [loadingAction, setLoadingAction] = useState<"topup" | "subscription" | "portal" | null>(null)
+const PLAN_CARDS: { plan: Plan | "free"; name: string; price: string; description: string }[] = [
+  { plan: "free", name: "Free", price: "¥0/月", description: "月15クレジット。まずはお試しに" },
+  { plan: "standard", name: "Standard", price: "¥980/月", description: "月300クレジット" },
+  { plan: "pro", name: "Pro", price: "¥1,900/月", description: "月700クレジット + 詳細添削 + 弱点トレンドレポート" },
+]
+
+const TOPUP_PACKS: { pack: "small" | "medium" | "large"; name: string; price: string; credits: number }[] = [
+  { pack: "small", name: "小", price: "¥300", credits: 75 },
+  { pack: "medium", name: "中", price: "¥1,000", credits: 300 },
+  { pack: "large", name: "大", price: "¥2,000", credits: 690 },
+]
+
+export function BillingView({ credits, subscriptionStatus, plan, transactions }: BillingViewProps) {
+  const [loadingAction, setLoadingAction] = useState<string | null>(null)
 
   const hasActiveSubscription = subscriptionStatus === "active" || subscriptionStatus === "past_due"
 
-  async function goToCheckout(mode: "topup" | "subscription") {
-    setLoadingAction(mode)
+  async function goToCheckout(body: { mode: "subscription"; plan: Plan } | { mode: "topup"; pack: "small" | "medium" | "large" }) {
+    const actionKey = body.mode === "subscription" ? body.plan : body.pack
+    setLoadingAction(actionKey)
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error("checkout session failed")
       const { url } = await res.json()
-      window.location.href = url
+      window.location.assign(url)
     } catch {
       toast.error("決済ページの作成に失敗しました")
       setLoadingAction(null)
@@ -85,27 +101,64 @@ export function BillingView({ credits, subscriptionStatus, transactions }: Billi
           <div className="text-4xl font-semibold tabular-nums">
             <NumberTicker value={credits} />
           </div>
-          <div className="flex flex-wrap gap-3">
+          {hasActiveSubscription && (
+            <Button variant="outline" className="w-fit" onClick={goToPortal} disabled={loadingAction !== null}>
+              サブスクリプションを管理
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>プラン</CardTitle>
+          <CardDescription>Standard/Proはいつでも変更・解約できます</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3">
+          {PLAN_CARDS.map((card) => {
+            const isCurrent = hasActiveSubscription ? plan === card.plan : card.plan === "free"
+            return (
+              <Card key={card.plan} className={isCurrent ? "border-primary" : undefined}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between text-base">
+                    {card.name}
+                    {isCurrent && <Badge>現在のプラン</Badge>}
+                  </CardTitle>
+                  <CardDescription>{card.price}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <p className="text-sm text-muted-foreground">{card.description}</p>
+                  {card.plan !== "free" && !isCurrent && (
+                    <Button
+                      onClick={() => goToCheckout({ mode: "subscription", plan: card.plan as Plan })}
+                      disabled={loadingAction !== null}
+                    >
+                      {hasActiveSubscription ? "変更する" : "登録する"}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>クレジットを追加購入</CardTitle>
+          <CardDescription>サブスクの有無に関わらず購入できます</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          {TOPUP_PACKS.map((p) => (
             <Button
-              onClick={() => goToCheckout("topup")}
+              key={p.pack}
+              variant="outline"
+              onClick={() => goToCheckout({ mode: "topup", pack: p.pack })}
               disabled={loadingAction !== null}
             >
-              クレジットを購入
+              {p.price}で{p.credits}クレジット
             </Button>
-            {hasActiveSubscription ? (
-              <Button variant="outline" onClick={goToPortal} disabled={loadingAction !== null}>
-                サブスクリプションを管理
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => goToCheckout("subscription")}
-                disabled={loadingAction !== null}
-              >
-                サブスクリプションに登録
-              </Button>
-            )}
-          </div>
+          ))}
         </CardContent>
       </Card>
 
