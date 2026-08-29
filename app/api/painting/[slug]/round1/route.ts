@@ -96,6 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
             reveal_missed_labels: missedLabels,
             reveal_narrative: { noticedText: ai3.noticedText, missedText: ai3.missedText },
             reveal_tour_page_bodies: ai3.tourPageBodies,
+            reveal_tour_page_headings: ai3.tourPageHeadings,
             credits_charged: bundleCost,
           })
           .select("id")

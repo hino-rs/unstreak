@@ -186,6 +186,7 @@ export type Database = {
           reveal_narrative: Json
           reveal_noticed_labels: string[]
           reveal_tour_page_bodies: string[]
+          reveal_tour_page_headings: string[]
           round1_grading: Json
           round1_text: string
           round2_grading: Json | null
@@ -203,6 +204,7 @@ export type Database = {
           reveal_narrative: Json
           reveal_noticed_labels?: string[]
           reveal_tour_page_bodies?: string[]
+          reveal_tour_page_headings?: string[]
           round1_grading: Json
           round1_text: string
           round2_grading?: Json | null
@@ -220,6 +222,7 @@ export type Database = {
           reveal_narrative?: Json
           reveal_noticed_labels?: string[]
           reveal_tour_page_bodies?: string[]
+          reveal_tour_page_headings?: string[]
           round1_grading?: Json
           round1_text?: string
           round2_grading?: Json | null

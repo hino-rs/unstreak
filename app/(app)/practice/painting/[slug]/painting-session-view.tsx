@@ -48,6 +48,15 @@ type RevealData = {
   tourPages: RevealTourPage[]
 }
 
+export type InitialPaintingSession = {
+  attemptId: string
+  text1: string
+  grade1: GradingResult
+  reveal: RevealData
+  text2: string | null
+  grade2: GradingResult | null
+}
+
 function StepIndicator({ current }: { current: Step }) {
   const idx = STEPS.findIndex((s) => s.key === current)
   return (
@@ -94,16 +103,25 @@ function ErrorBanner({ message }: { message: string }) {
   )
 }
 
-export function PaintingSessionView({ painting }: { painting: PaintingSummary }) {
+export function PaintingSessionView({
+  painting,
+  initialSession,
+}: {
+  painting: PaintingSummary
+  initialSession: InitialPaintingSession | null
+}) {
   const router = useRouter()
 
-  const [step, setStep] = useState<Step>("round1")
-  const [text1, setText1] = useState("")
-  const [text2, setText2] = useState("")
-  const [grade1, setGrade1] = useState<GradingResult | null>(null)
-  const [grade2, setGrade2] = useState<GradingResult | null>(null)
-  const [attemptId, setAttemptId] = useState<string | null>(null)
-  const [reveal, setReveal] = useState<RevealData | null>(null)
+  const resuming = !!initialSession
+  const [step, setStep] = useState<Step>(
+    initialSession ? (initialSession.grade2 ? "round2" : "reveal") : "round1"
+  )
+  const [text1, setText1] = useState(initialSession?.text1 ?? "")
+  const [text2, setText2] = useState(initialSession?.text2 ?? "")
+  const [grade1, setGrade1] = useState<GradingResult | null>(initialSession?.grade1 ?? null)
+  const [grade2, setGrade2] = useState<GradingResult | null>(initialSession?.grade2 ?? null)
+  const [attemptId, setAttemptId] = useState<string | null>(initialSession?.attemptId ?? null)
+  const [reveal, setReveal] = useState<RevealData | null>(initialSession?.reveal ?? null)
   const [grading, setGrading] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [tourIdx, setTourIdx] = useState(0)
@@ -187,6 +205,12 @@ export function PaintingSessionView({ painting }: { painting: PaintingSummary })
         </Link>
         {step !== "done" && <StepIndicator current={step} />}
       </div>
+
+      {resuming && step !== "done" && (
+        <div className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+          前回の続きから再開しました。Round1の添削結果はすでに記録済みです。
+        </div>
+      )}
 
       {step === "round1" && (
         <div className="space-y-4">

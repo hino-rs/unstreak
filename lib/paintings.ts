@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { GradingResult } from "@/lib/ai1";
 
 export const PAINTING_STAGE_THRESHOLD = 3;
 
@@ -147,6 +148,68 @@ export async function getCompletedPaintingSlugs(
     if (slug) slugs.add(slug);
   }
   return [...slugs];
+}
+
+export type InProgressPaintingAttempt = {
+  attemptId: string;
+  round1Text: string;
+  round1Grading: GradingResult;
+  reveal: {
+    noticedLabels: string[];
+    missedLabels: string[];
+    noticedText: string | null;
+    missedText: string | null;
+    tourPageHeadings: string[];
+    tourPageBodies: string[];
+  };
+  round2Text: string | null;
+  round2Grading: GradingResult | null;
+};
+
+// round1提出済みだがround2未提出(completed_at is null)のattemptを復元する。
+// クライアントのuseStateのみを真実の源にすると、reveal取得後のリロードでattemptIdが失われ、
+// round1を再送信して二重課金される(実装漏れ調査.md参照)。ページ表示のたびにこれを確認し、
+// あれば再送信フォームではなく続きの画面を出す。
+export async function getIncompletePaintingAttempt(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+  userId: string,
+  paintingId: string
+): Promise<InProgressPaintingAttempt | null> {
+  const { data, error } = await supabase
+    .from("painting_attempts")
+    .select(
+      "id, round1_text, round1_grading, reveal_noticed_labels, reveal_missed_labels, reveal_narrative, reveal_tour_page_headings, reveal_tour_page_bodies, round2_text, round2_grading"
+    )
+    .eq("user_id", userId)
+    .eq("painting_id", paintingId)
+    .is("completed_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const narrative = (data.reveal_narrative ?? {}) as {
+    noticedText?: string | null;
+    missedText?: string | null;
+  };
+
+  return {
+    attemptId: data.id,
+    round1Text: data.round1_text,
+    round1Grading: data.round1_grading as GradingResult,
+    reveal: {
+      noticedLabels: data.reveal_noticed_labels ?? [],
+      missedLabels: data.reveal_missed_labels ?? [],
+      noticedText: narrative.noticedText ?? null,
+      missedText: narrative.missedText ?? null,
+      tourPageHeadings: data.reveal_tour_page_headings ?? [],
+      tourPageBodies: data.reveal_tour_page_bodies ?? [],
+    },
+    round2Text: data.round2_text,
+    round2Grading: data.round2_grading as GradingResult | null,
+  };
 }
 
 // AnthropicのURLソースはWikimedia Commons(commons.wikimedia.org→upload.wikimedia.orgの

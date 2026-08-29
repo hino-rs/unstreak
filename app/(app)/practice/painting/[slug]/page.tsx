@@ -1,8 +1,12 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/server"
-import { getPaintingSummaryBySlug } from "@/lib/paintings"
-import { PaintingSessionView } from "./painting-session-view"
+import {
+  getPaintingSummaryBySlug,
+  getPaintingFactBaseById,
+  getIncompletePaintingAttempt,
+} from "@/lib/paintings"
+import { PaintingSessionView, type InitialPaintingSession } from "./painting-session-view"
 
 export default async function PaintingSessionPage({
   params,
@@ -31,5 +35,33 @@ export default async function PaintingSessionPage({
     )
   }
 
-  return <PaintingSessionView painting={painting} />
+  const incompleteAttempt = await getIncompletePaintingAttempt(supabase, user.id, painting.id)
+
+  let initialSession: InitialPaintingSession | null = null
+  if (incompleteAttempt) {
+    const factBase = await getPaintingFactBaseById(supabase, painting.id)
+    const tourPages = (factBase?.tourPages ?? []).map((p, i) => ({
+      heading: incompleteAttempt.reveal.tourPageHeadings[i] ?? p.heading,
+      body: incompleteAttempt.reveal.tourPageBodies[i] ?? p.groundingBody,
+      focusX: p.focusX,
+      focusY: p.focusY,
+      zoom: p.zoom,
+    }))
+    initialSession = {
+      attemptId: incompleteAttempt.attemptId,
+      text1: incompleteAttempt.round1Text,
+      grade1: incompleteAttempt.round1Grading,
+      reveal: {
+        noticedLabels: incompleteAttempt.reveal.noticedLabels,
+        missedLabels: incompleteAttempt.reveal.missedLabels,
+        noticedText: incompleteAttempt.reveal.noticedText,
+        missedText: incompleteAttempt.reveal.missedText,
+        tourPages,
+      },
+      text2: incompleteAttempt.round2Text,
+      grade2: incompleteAttempt.round2Grading,
+    }
+  }
+
+  return <PaintingSessionView painting={painting} initialSession={initialSession} />
 }
