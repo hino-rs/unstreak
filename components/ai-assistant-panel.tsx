@@ -32,6 +32,11 @@ interface HistoryItem {
   createdAt: Date;
 }
 
+type QuestionPayload =
+  | { mode: "ask"; text: string }
+  | { mode: "answer"; question: string; guess: string }
+  | { mode: "skip"; question: string };
+
 export function AiAssistantPanel() {
   const [question, setQuestion] = useState("");
   const [guess, setGuess] = useState("");
@@ -41,17 +46,9 @@ export function AiAssistantPanel() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedQuestion = question.trim();
-    const trimmedGuess = guess.trim();
-
-    if (!trimmedQuestion || !trimmedGuess || isLoading) return;
-
+  const submitQuestion = async (payload: QuestionPayload) => {
     setIsLoading(true);
     setErrorText(null);
-
-    const payload = { mode: "answer" as const, question: trimmedQuestion, guess: trimmedGuess };
 
     try {
       const res = await fetch("/api/question", {
@@ -61,7 +58,11 @@ export function AiAssistantPanel() {
       });
 
       if (!res.ok) {
-        throw new Error("質問の送信に失敗しました");
+        throw new Error(
+          res.status === 402
+            ? "クレジットが不足しています。設定画面から追加してください。"
+            : "質問の送信に失敗しました"
+        );
       }
 
       const data: Ai2Response = await res.json();
@@ -70,8 +71,8 @@ export function AiAssistantPanel() {
       if (data.status === "revealed") {
         const newItem: HistoryItem = {
           id: Math.random().toString(36).substring(2, 9),
-          question: trimmedQuestion,
-          userGuess: trimmedGuess,
+          question,
+          userGuess: data.user_guess,
           answer: data.answer,
           vocabLemma: data.vocab_lemma,
           wasGuessCorrect: data.was_guess_correct,
@@ -86,6 +87,29 @@ export function AiAssistantPanel() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // ①質問だけをまず送る(気軽に聞ける・無課金)。guess_requiredが返れば②へ進む
+  const handleAsk = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion || isLoading) return;
+    setQuestion(trimmedQuestion);
+    void submitQuestion({ mode: "ask", text: trimmedQuestion });
+  };
+
+  // ②予想を送って答え合わせ(スキップ不可、必ずここを通ってから正解を見る)
+  const handleGuessSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedGuess = guess.trim();
+    if (!trimmedGuess || isLoading || !question) return;
+    void submitQuestion({ mode: "answer", question, guess: trimmedGuess });
+  };
+
+  // ②'本当にわからない場合の正直な脱出路(予想画面には必ず遭遇させた上での選択)
+  const handleSkip = () => {
+    if (isLoading || !question) return;
+    void submitQuestion({ mode: "skip", question });
   };
 
   const handleReset = () => {
@@ -238,7 +262,7 @@ export function AiAssistantPanel() {
               <p className="text-xs text-muted-foreground">
                 「{response.normalized_question}」の英語表現を一度予想してみてください。
               </p>
-              <form onSubmit={handleSubmit} className="space-y-3">
+              <form onSubmit={handleGuessSubmit} className="space-y-2">
                 <Input
                   type="text"
                   placeholder="予想を入力（例: Desert）"
@@ -255,13 +279,23 @@ export function AiAssistantPanel() {
                 >
                   {isLoading ? <Loader2 className="size-3.5 animate-spin" /> : "送信"}
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSkip}
+                  disabled={isLoading}
+                  className="w-full text-xs text-muted-foreground hover:text-foreground"
+                >
+                  わからない、教えて
+                </Button>
               </form>
             </div>
           )}
         </div>
       ) : (
         /* 入力フォーム（初期画面） */
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 flex-1">
+        <form onSubmit={handleAsk} className="flex flex-col gap-4 flex-1">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-foreground flex items-center justify-between">
               <span>質問（日本語または英語）</span>
@@ -278,25 +312,9 @@ export function AiAssistantPanel() {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">あなたの予想</label>
-              <span className="text-[10px] text-muted-foreground font-normal">必須</span>
-            </div>
-            <Input
-              type="text"
-              required
-              placeholder="例: Desert (当てずっぽうでもOK)"
-              value={guess}
-              onChange={(e) => setGuess(e.target.value)}
-              disabled={isLoading}
-              className="text-xs"
-            />
-          </div>
-
           <Button
             type="submit"
-            disabled={isLoading || !question.trim() || !guess.trim()}
+            disabled={isLoading || !question.trim()}
             className="w-full bg-violet-600 hover:bg-violet-700 text-white text-xs h-9 mt-1"
           >
             {isLoading ? (
@@ -313,7 +331,7 @@ export function AiAssistantPanel() {
           </Button>
 
           <p className="text-[11px] text-muted-foreground leading-tight text-center mt-auto pb-1">
-            💡 間違えても予想を一度挟むことで、記憶の定着率が高まります。
+            💡 まずは気軽に質問してOK。答えを見る前に一度予想を挟むことで、記憶の定着率が高まります。
           </p>
         </form>
       )}

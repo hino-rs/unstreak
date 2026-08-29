@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/server";
 import { askAi2, toConceptKeyFromLemma } from "@/lib/ai2";
 import { checkRateLimit, withConcurrencyLock, ConcurrencyLimitError } from "@/lib/rate-limit";
-import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit, refundCredit } from "@/lib/credits";
+import { CREDIT_COSTS, InsufficientCreditsError, consumeCredit } from "@/lib/credits";
 
 type QuestionRequest =
   | { mode: "ask"; text: string }
@@ -54,17 +54,15 @@ export async function POST(req: NextRequest) {
   let result;
   try {
     result = await withConcurrencyLock(user.id, async () => {
-      await consumeCredit(supabase, user.id, CREDIT_COSTS.question, "question");
-      try {
-        return await askAi2(promptText);
-      } catch (aiError) {
-        try {
-          await refundCredit(supabase, user.id, CREDIT_COSTS.question, "question_refund");
-        } catch (refundError) {
-          console.error("[question] refundCredit threw:", refundError);
-        }
-        throw aiError;
+      const aiResult = await askAi2(promptText);
+      // guess_requiredは「まず予想して」と促すだけで実質的な回答を返していないため無課金。
+      // revealed/out_of_scopeのときだけ課金する(質問する行為自体は常に無料に保つ設計)。
+      // consumeCreditをAI呼び出し成功後に行うため、ここで残高不足が判明してもAI応答自体の
+      // 再試行コストはかからず、単に402を返して結果を破棄するだけで済む(返金処理も不要)。
+      if (aiResult.status !== "guess_required") {
+        await consumeCredit(supabase, user.id, CREDIT_COSTS.question, "question");
       }
+      return aiResult;
     });
   } catch (e) {
     if (e instanceof ConcurrencyLimitError) {
