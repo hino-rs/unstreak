@@ -52,12 +52,19 @@ export async function POST(req: NextRequest) {
         .single();
     const learnerLevel = scoreToLabel(profile?.level_score);
 
+    const { data: balance } = await supabase
+        .from("credit_balances")
+        .select("plan")
+        .eq("user_id", user.id)
+        .single();
+    const isPro = balance?.plan === "pro";
+
     let grading;
     try {
         grading = await withConcurrencyLock(user.id, async () => {
             await consumeCredit(supabase, user.id, CREDIT_COSTS.grade, "grade");
             try {
-                return await gradeDescription(imageUrl, userText, learnerLevel);
+                return await gradeDescription(imageUrl, userText, learnerLevel, isPro);
             } catch (aiError) {
                 try {
                     await refundCredit(supabase, user.id, CREDIT_COSTS.grade, "grade_refund");

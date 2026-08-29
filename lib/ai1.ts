@@ -31,6 +31,22 @@ const GradingErrorSchema = z.object({
   user_fragment: z.string().describe('ユーザーが書いた元の該当箇所'),
   corrected_fragment: z.string().describe('修正後の該当箇所'),
   explanation_ja: z.string().describe('なぜ修正が必要かの日本語での簡潔な解説'),
+  // Pro会員向け詳細添削でのみ埋める。Standard/Freeでは省略させる(出力トークン節約のため)
+  levelt_stage: z
+    .enum(['lexical_selection', 'grammatical_encoding'])
+    .optional()
+    .describe(
+      "詳細添削が有効な場合のみ設定。Leveltの発話生成モデルに基づき、categoryが'vocabulary'なら" +
+      "'lexical_selection'(語彙選択の問題)、'grammar'なら'grammatical_encoding'(文法組立の問題)を設定。" +
+      "それ以外のcategoryや詳細添削が無効な場合は省略する"
+    ),
+  alternative_phrasings: z
+    .array(z.string())
+    .optional()
+    .describe(
+      '詳細添削が有効な場合のみ設定。corrected_fragmentとは別の、より自然な言い換え候補を1〜2個。' +
+      '詳細添削が無効な場合は省略する'
+    ),
 });
 
 const GradingResultSchema = z.object({
@@ -74,6 +90,7 @@ export async function gradeDescription(
   image: ImageInput,
   userText: string,
   learnerLevel?: LevelLabel,
+  detailed = false,
 ): Promise<GradingResult> {
   const levelInstruction = learnerLevel
     ? `\n              - この学習者の推定レベルは「${learnerLevel}」です。corrected_text と各errorのexplanation_ja は、
@@ -81,6 +98,12 @@ export async function gradeDescription(
               advanced: より高度な語彙・自然な言い換えも許容）。ただし添削の正確さ・誤り検出は
               レベルに関わらず一切妥協しないこと。`
     : '';
+
+  const detailedInstruction = detailed
+    ? `\n              - 各errorについて levelt_stage（'vocabulary'なら'lexical_selection'、'grammar'なら
+              'grammatical_encoding'）と、corrected_fragmentとは別の自然な言い換え候補1〜2個を
+              alternative_phrasingsに設定すること。`
+    : `\n              - levelt_stage と alternative_phrasings は省略すること（設定しない）。`;
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
@@ -98,7 +121,7 @@ export async function gradeDescription(
               - 同じ文法項目の誤りが複数箇所にあれば、箇所ごとに別エントリにする
               - overall_comment で言及した誤りは、必ず対応するエントリが errors に存在すること
               - 誤りが本当に1つもない場合に限り errors を [] にする
-              - level_estimate は誤りの有無ではなく、語彙・構文の複雑さと誤り密度から総合的に判定する${levelInstruction}`,
+              - level_estimate は誤りの有無ではなく、語彙・構文の複雑さと誤り密度から総合的に判定する${levelInstruction}${detailedInstruction}`,
     messages: [
       {
         role: 'user',

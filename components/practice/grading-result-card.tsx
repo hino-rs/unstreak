@@ -28,6 +28,11 @@ export const categoryLabels: Record<
   },
 }
 
+const leveltStageLabels: Record<NonNullable<GradingError["levelt_stage"]>, string> = {
+  lexical_selection: "語彙選択でつまずいた",
+  grammatical_encoding: "文法の組み立てでつまずいた",
+}
+
 export const grammarPointLabels: Record<string, string> = {
   articles: "冠詞",
   past_tense: "過去形",
@@ -161,8 +166,32 @@ export function GradingResultCard({ result }: { result: GradingResult }) {
 
                   {/* 解説 */}
                   <p className="text-xs text-muted-foreground leading-relaxed pl-0.5">
+                    {err.levelt_stage && (
+                      <span className="font-medium text-foreground">
+                        {leveltStageLabels[err.levelt_stage]}：
+                      </span>
+                    )}
                     {err.explanation_ja}
                   </p>
+
+                  {/* 言い換え例(Pro限定の詳細添削でのみ返ってくる) */}
+                  {err.alternative_phrasings && err.alternative_phrasings.length > 0 && (
+                    <div className="pl-0.5 space-y-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground">
+                        言い換え例
+                      </span>
+                      <ul className="space-y-1">
+                        {err.alternative_phrasings.map((phrase, i) => (
+                          <li
+                            key={i}
+                            className="text-xs text-foreground bg-muted/40 rounded-lg px-2.5 py-1.5 border border-border/60"
+                          >
+                            {phrase}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )
             })}
