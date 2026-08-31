@@ -28,6 +28,7 @@ export default function MarketingPageLayout({children}: {children: React.ReactNo
                 <div className="flex items-center gap-4">
                     <Link href="/terms" className="hover:text-slate-600">利用規約</Link>
                     <Link href="/privacy" className="hover:text-slate-600">プライバシーポリシー</Link>
+                    <Link href="/tokushoho" className="hover:text-slate-600">特定商取引法に基づく表記</Link>
                     <Link href="/login" className="hover:text-slate-600">ログイン</Link>
                     <Link href="/signup" className="hover:text-slate-600">無料ではじめる</Link>
                 </div>

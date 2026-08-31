@@ -49,6 +49,7 @@ const navItems = [
 const legalLinks = [
     { href: "/terms", label: "利用規約", icon: FileText },
     { href: "/privacy", label: "プライバシーポリシー", icon: ShieldCheck },
+    { href: "/tokushoho", label: "特定商取引法に基づく表記", icon: FileText },
 ];
 
 export function AppSidebar({ user, credits }: { user: User | null; credits: number | null }) {
