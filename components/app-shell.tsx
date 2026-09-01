@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { fredoka } from "@/lib/fonts";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,8 @@ import { AiAssistantPanel } from "@/components/ai-assistant-panel";
 import { CreditBalanceBadge } from "@/components/credit-balance-badge";
 import type { User } from "@supabase/supabase-js";
 
+const AI_ASSISTANT_PATHS = ["/practice/describe", "/practice/painting", "/practice/listening"];
+
 export function AppShell({
     user,
     credits,
@@ -35,6 +38,8 @@ export function AppShell({
     children: React.ReactNode;
 }) {
     const [aiOpen, setAiOpen] = useState(false);
+    const pathname = usePathname();
+    const showAiAssistant = AI_ASSISTANT_PATHS.some((path) => pathname?.startsWith(path));
 
     return (
         <TooltipProvider>
@@ -52,14 +57,16 @@ export function AppShell({
                         {credits !== null && (
                             <CreditBalanceBadge initialCredits={credits} variant="compact" />
                         )}
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setAiOpen(true)}
-                            aria-label="AIアシスタントを開く"
-                        >
-                            <Sparkles />
-                        </Button>
+                        {showAiAssistant && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setAiOpen(true)}
+                                aria-label="AIアシスタントを開く"
+                            >
+                                <Sparkles />
+                            </Button>
+                        )}
                     </header>
 
                     <div className="sticky top-0 z-30 hidden h-12 shrink-0 items-center border-b border-border bg-background px-2 md:flex">
@@ -71,21 +78,25 @@ export function AppShell({
                             {children}
                         </main>
 
-                        <aside className="hidden md:flex w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border bg-card/30 p-4">
-                            <AiAssistantPanel />
-                        </aside>
+                        {showAiAssistant && (
+                            <aside className="hidden md:flex w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border bg-card/30 p-4">
+                                <AiAssistantPanel />
+                            </aside>
+                        )}
                     </div>
                 </SidebarInset>
 
-                <Sheet open={aiOpen} onOpenChange={setAiOpen}>
-                    <SheetContent side="right" className="w-80 p-4 md:hidden">
-                        <SheetHeader className="sr-only">
-                            <SheetTitle>AIアシスタント</SheetTitle>
-                            <SheetDescription>AI2 辞書相棒を開きます</SheetDescription>
-                        </SheetHeader>
-                        <AiAssistantPanel />
-                    </SheetContent>
-                </Sheet>
+                {showAiAssistant && (
+                    <Sheet open={aiOpen} onOpenChange={setAiOpen}>
+                        <SheetContent side="right" className="w-80 p-4 md:hidden">
+                            <SheetHeader className="sr-only">
+                                <SheetTitle>AIアシスタント</SheetTitle>
+                                <SheetDescription>AI2 辞書相棒を開きます</SheetDescription>
+                            </SheetHeader>
+                            <AiAssistantPanel />
+                        </SheetContent>
+                    </Sheet>
+                )}
             </SidebarProvider>
         </TooltipProvider>
     );
