@@ -49,6 +49,8 @@ export function ProfileView({ email, createdAt, gradeBand, levelScore }: Profile
 
   return (
     <div className="p-6 md:p-8 flex flex-col gap-6 max-w-2xl">
+      <h1 className="text-xl font-semibold">プロフィール</h1>
+
       <div className="flex items-center gap-4">
         <Avatar className="size-16">
           <AvatarFallback className="text-lg">{initials}</AvatarFallback>
@@ -106,10 +108,10 @@ export function ProfileView({ email, createdAt, gradeBand, levelScore }: Profile
 
       <Link
         href="/settings"
-        className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm transition-colors hover:border-primary/40 hover:bg-accent/40"
+        className="group flex items-center justify-between rounded-4xl bg-card px-4 py-3 text-sm shadow-xs ring-1 ring-foreground/5 transition-all hover:shadow-md hover:ring-primary/30 dark:ring-foreground/10"
       >
         <span>アカウント設定（お支払い・退会）</span>
-        <ArrowRight className="size-4 text-muted-foreground" />
+        <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
       </Link>
     </div>
   )
