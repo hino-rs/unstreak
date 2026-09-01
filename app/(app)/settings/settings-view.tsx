@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
+import { ArrowRight } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -102,8 +103,12 @@ export function SettingsView({ gradeBand, levelScore, deleteError }: SettingsVie
         </CardContent>
       </Card>
 
-      <Link href="/settings/billing" className="text-sm underline text-muted-foreground hover:text-foreground">
-        クレジット・お支払い
+      <Link
+        href="/settings/billing"
+        className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm transition-colors hover:border-primary/40 hover:bg-accent/40"
+      >
+        <span>クレジット・お支払い</span>
+        <ArrowRight className="size-4 text-muted-foreground" />
       </Link>
 
       <Card className="border-destructive/30">

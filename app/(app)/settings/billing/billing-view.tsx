@@ -1,10 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
+import { ArrowLeft } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   Table,
   TableBody,
@@ -38,17 +41,21 @@ const subscriptionLabel: Record<string, string> = {
   incomplete: "未完了",
 }
 
-const PLAN_CARDS: { plan: Plan | "free"; name: string; price: string; description: string }[] = [
+const PLAN_CARDS: { plan: Plan | "free"; name: string; price: string; description: string; recommended?: boolean }[] = [
   { plan: "free", name: "Free", price: "¥0/月", description: "月15クレジット。まずはお試しに" },
-  { plan: "standard", name: "Standard", price: "¥980/月", description: "月300クレジット" },
+  { plan: "standard", name: "Standard", price: "¥980/月", description: "月300クレジット", recommended: true },
   { plan: "pro", name: "Pro", price: "¥1,900/月", description: "月700クレジット + 詳細添削 + 弱点トレンドレポート" },
 ]
 
-const TOPUP_PACKS: { pack: "small" | "medium" | "large"; name: string; price: string; credits: number }[] = [
-  { pack: "small", name: "小", price: "¥300", credits: 75 },
-  { pack: "medium", name: "中", price: "¥1,000", credits: 300 },
-  { pack: "large", name: "大", price: "¥2,000", credits: 690 },
+const TOPUP_PACKS: { pack: "small" | "medium" | "large"; name: string; priceYen: number; price: string; credits: number }[] = [
+  { pack: "small", name: "小", priceYen: 300, price: "¥300", credits: 75 },
+  { pack: "medium", name: "中", priceYen: 1000, price: "¥1,000", credits: 300 },
+  { pack: "large", name: "大", priceYen: 2000, price: "¥2,000", credits: 690 },
 ]
+
+const bestValuePack = TOPUP_PACKS.reduce((best, p) =>
+  p.priceYen / p.credits < best.priceYen / best.credits ? p : best
+).pack
 
 export function BillingView({ credits, subscriptionStatus, plan, transactions }: BillingViewProps) {
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
@@ -87,7 +94,18 @@ export function BillingView({ credits, subscriptionStatus, plan, transactions }:
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="p-6 md:p-8 flex flex-col gap-6 max-w-4xl">
+      <div className="flex flex-col gap-1">
+        <Link
+          href="/settings"
+          className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          設定に戻る
+        </Link>
+        <h1 className="text-xl font-semibold">プラン・クレジット</h1>
+      </div>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>クレジット残高</CardTitle>
@@ -97,13 +115,16 @@ export function BillingView({ credits, subscriptionStatus, plan, transactions }:
             </Badge>
           )}
         </CardHeader>
-        <CardContent className="flex flex-col gap-6">
+        <CardContent className="flex flex-col gap-3">
           <div className="text-4xl font-semibold tabular-nums">
             <NumberTicker value={credits} />
           </div>
+          <p className="text-sm text-muted-foreground">
+            クレジットはドリルの添削・リスニング等の利用ごとに消費されます
+          </p>
           {hasActiveSubscription && (
-            <Button variant="outline" className="w-fit" onClick={goToPortal} disabled={loadingAction !== null}>
-              サブスクリプションを管理
+            <Button variant="outline" className="w-fit mt-2" onClick={goToPortal} disabled={loadingAction !== null}>
+              {loadingAction === "portal" ? "処理中..." : "サブスクリプションを管理"}
             </Button>
           )}
         </CardContent>
@@ -117,27 +138,39 @@ export function BillingView({ credits, subscriptionStatus, plan, transactions }:
         <CardContent className="grid gap-4 sm:grid-cols-3">
           {PLAN_CARDS.map((card) => {
             const isCurrent = hasActiveSubscription ? plan === card.plan : card.plan === "free"
+            const showRecommended = card.recommended && !isCurrent
             return (
-              <Card key={card.plan} className={isCurrent ? "border-primary" : undefined}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    {card.name}
-                    {isCurrent && <Badge>現在のプラン</Badge>}
-                  </CardTitle>
-                  <CardDescription>{card.price}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                  <p className="text-sm text-muted-foreground">{card.description}</p>
-                  {card.plan !== "free" && !isCurrent && (
-                    <Button
-                      onClick={() => goToCheckout({ mode: "subscription", plan: card.plan as Plan })}
-                      disabled={loadingAction !== null}
-                    >
-                      {hasActiveSubscription ? "変更する" : "登録する"}
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+              <div
+                key={card.plan}
+                className={cn(
+                  "flex flex-col gap-3 rounded-2xl border border-border bg-card/50 p-4",
+                  isCurrent && "border-primary ring-1 ring-primary/30",
+                  showRecommended && "border-violet-400 ring-1 ring-violet-400/40"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-base font-medium">{card.name}</span>
+                  {isCurrent ? (
+                    <Badge>現在のプラン</Badge>
+                  ) : showRecommended ? (
+                    <Badge className="bg-violet-500 text-white">おすすめ</Badge>
+                  ) : null}
+                </div>
+                <span className="text-sm text-muted-foreground">{card.price}</span>
+                <p className="text-sm text-muted-foreground">{card.description}</p>
+                {card.plan !== "free" && !isCurrent && (
+                  <Button
+                    onClick={() => goToCheckout({ mode: "subscription", plan: card.plan as Plan })}
+                    disabled={loadingAction !== null}
+                  >
+                    {loadingAction === card.plan
+                      ? "処理中..."
+                      : hasActiveSubscription
+                        ? "変更する"
+                        : "登録する"}
+                  </Button>
+                )}
+              </div>
             )
           })}
         </CardContent>
@@ -148,16 +181,23 @@ export function BillingView({ credits, subscriptionStatus, plan, transactions }:
           <CardTitle>クレジットを追加購入</CardTitle>
           <CardDescription>サブスクの有無に関わらず購入できます</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
+        <CardContent className="grid gap-3 sm:grid-cols-3">
           {TOPUP_PACKS.map((p) => (
-            <Button
+            <button
               key={p.pack}
-              variant="outline"
+              type="button"
               onClick={() => goToCheckout({ mode: "topup", pack: p.pack })}
               disabled={loadingAction !== null}
+              className="flex flex-col items-start gap-1 rounded-2xl border border-border p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-50"
             >
-              {p.price}で{p.credits}クレジット
-            </Button>
+              <div className="flex w-full items-center justify-between gap-2">
+                <span className="text-lg font-semibold">{p.price}</span>
+                {p.pack === bestValuePack && <Badge variant="secondary">一番お得</Badge>}
+              </div>
+              <span className="text-sm text-muted-foreground">
+                {loadingAction === p.pack ? "処理中..." : `${p.credits}クレジット`}
+              </span>
+            </button>
           ))}
         </CardContent>
       </Card>
