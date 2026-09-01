@@ -38,6 +38,7 @@ export function UserIcon({ user }: { user: User }) {
       />
       <DropdownMenuContent className="w-40">
         <DropdownMenuGroup>
+          <DropdownMenuItem render={<Link href="/profile" />}>プロフィール</DropdownMenuItem>
           <DropdownMenuItem render={<Link href="/settings" />}>アカウント設定</DropdownMenuItem>
           <DropdownMenuItem render={<Link href="/settings/billing" />}>請求</DropdownMenuItem>
         </DropdownMenuGroup>
