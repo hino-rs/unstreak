@@ -7,6 +7,7 @@ export default async function AppPageLayout({ children }: { children: React.Reac
     const { data: { user } } = await supabase.auth.getUser();
     const cookieStore = await cookies();
     const defaultSidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
+    const defaultAiPanelOpen = cookieStore.get("ai_panel_state")?.value !== "false";
 
     let credits: number | null = null;
     if (user) {
@@ -19,7 +20,12 @@ export default async function AppPageLayout({ children }: { children: React.Reac
     }
 
     return (
-        <AppShell user={user} credits={credits} defaultSidebarOpen={defaultSidebarOpen}>
+        <AppShell
+            user={user}
+            credits={credits}
+            defaultSidebarOpen={defaultSidebarOpen}
+            defaultAiPanelOpen={defaultAiPanelOpen}
+        >
             {children}
         </AppShell>
     );

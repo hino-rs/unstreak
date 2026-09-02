@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { fredoka } from "@/lib/fonts";
-import { Sparkles } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
@@ -26,20 +26,32 @@ import type { User } from "@supabase/supabase-js";
 
 const AI_ASSISTANT_PATHS = ["/practice/describe", "/practice/painting", "/practice/listening", "/practice/topic"];
 
+const AI_PANEL_COOKIE_NAME = "ai_panel_state";
+const AI_PANEL_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+
 export function AppShell({
     user,
     credits,
     defaultSidebarOpen = true,
+    defaultAiPanelOpen = true,
     children,
 }: {
     user: User | null;
     credits: number | null;
     defaultSidebarOpen?: boolean;
+    defaultAiPanelOpen?: boolean;
     children: React.ReactNode;
 }) {
     const [aiOpen, setAiOpen] = useState(false);
+    const [aiPanelOpen, setAiPanelOpen] = useState(defaultAiPanelOpen);
     const pathname = usePathname();
     const showAiAssistant = AI_ASSISTANT_PATHS.some((path) => pathname?.startsWith(path));
+
+    // サイドバーと同じくクッキーに開閉状態を保存して、リロード後も維持する。
+    const setAiPanel = useCallback((open: boolean) => {
+        setAiPanelOpen(open);
+        document.cookie = `${AI_PANEL_COOKIE_NAME}=${open}; path=/; max-age=${AI_PANEL_COOKIE_MAX_AGE}`;
+    }, []);
 
     return (
         <TooltipProvider>
@@ -69,8 +81,20 @@ export function AppShell({
                         )}
                     </header>
 
-                    <div className="sticky top-0 z-30 hidden h-12 shrink-0 items-center border-b border-border bg-background px-2 md:flex">
+                    <div className="sticky top-0 z-30 hidden h-12 shrink-0 items-center justify-between border-b border-border bg-background px-2 md:flex">
                         <SidebarTrigger aria-label="サイドバーの開閉" />
+                        {showAiAssistant && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={() => setAiPanel(!aiPanelOpen)}
+                                aria-label={aiPanelOpen ? "AI2 辞書相棒を閉じる" : "AI2 辞書相棒を開く"}
+                                aria-expanded={aiPanelOpen}
+                            >
+                                {aiPanelOpen ? <PanelRightClose /> : <PanelRightOpen />}
+                            </Button>
+                        )}
                     </div>
 
                     <div className="flex flex-1 min-h-0 min-w-0">
@@ -78,9 +102,12 @@ export function AppShell({
                             {children}
                         </main>
 
+                        {/* 閉じても質問・履歴が消えないよう、アンマウントせず非表示にする。 */}
                         {showAiAssistant && (
-                            <aside className="hidden md:flex w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border bg-card/30 p-4">
-                                <AiAssistantPanel />
+                            <aside
+                                className={`w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border bg-card/30 p-4 ${aiPanelOpen ? "hidden md:flex" : "hidden"}`}
+                            >
+                                <AiAssistantPanel onClose={() => setAiPanel(false)} />
                             </aside>
                         )}
                     </div>

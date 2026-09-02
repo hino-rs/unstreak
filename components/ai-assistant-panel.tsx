@@ -18,6 +18,7 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  X,
 } from "lucide-react";
 import type { Ai2Response } from "@/lib/ai2";
 
@@ -37,7 +38,7 @@ type QuestionPayload =
   | { mode: "answer"; question: string; guess: string }
   | { mode: "skip"; question: string };
 
-export function AiAssistantPanel() {
+export function AiAssistantPanel({ onClose }: { onClose?: () => void }) {
   const [question, setQuestion] = useState("");
   const [guess, setGuess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -132,17 +133,30 @@ export function AiAssistantPanel() {
             <p className="text-[11px] text-muted-foreground">単語・熟語をすぐ確認</p>
           </div>
         </div>
-        {response && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleReset}
-            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <RefreshCw className="size-3.5 mr-1" />
-            新しい質問
-          </Button>
-        )}
+        <div className="flex items-center gap-1">
+          {response && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleReset}
+              className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className="size-3.5 mr-1" />
+              新しい質問
+            </Button>
+          )}
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="AI2 辞書相棒を閉じる"
+              className="size-8 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* エラー表示 */}
