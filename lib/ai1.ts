@@ -165,6 +165,152 @@ export async function gradeDescription(
   return GradingResultSchema.parse(sanitizedInput);
 }
  
+// ============================================================
+// トピック説明(会話ドリル)の添削。1本の連続したテキストではなく、会話全体を
+// 「発言ごと」に評価する点だけが画像描写ドリルと違う。誤り1件の構造(GradingErrorSchema)は
+// 参照範囲がその1発言に狭まるだけなので、そのまま流用する。
+// ============================================================
+
+// 3段階。LevelLabel(beginner/intermediate/advanced)やリスニングTierと同じ粒度に揃えた
+const UtteranceRatingSchema = z.enum(['excellent', 'good', 'needs_work']);
+
+const TopicUtteranceEvaluationSchema = z.object({
+  turn_index: z
+    .number()
+    .describe('評価対象のユーザー発言に振られている番号。入力の [turn_index] をそのまま使うこと'),
+  rating: UtteranceRatingSchema.describe(
+    'excellent: 直すべき点がなく自然。good: 意味は通るが不自然さ・軽微な誤りがある。' +
+    'needs_work: 文法/語彙の誤りが意味の伝達を妨げている'
+  ),
+  errors: z
+    .array(GradingErrorSchema)
+    .describe(
+      'この発言に対する指摘。rating が excellent の場合のみ空配列 [] にすること。' +
+      'good / needs_work の場合は必ず1件以上入れること'
+    ),
+});
+
+const TopicSessionGradingSchema = z.object({
+  overall_comment: z
+    .string()
+    .describe(
+      '会話全体についての2〜4文程度の日本語での総評。個々の文法ミスの列挙ではなく、' +
+      '会話の流れ・話題への踏み込み方・言いたいことを英語で組み立てられていたかに触れること'
+    ),
+  utterances: z
+    .array(TopicUtteranceEvaluationSchema)
+    .describe('ユーザーの発言すべてを、入力に現れた順で漏れなく評価する'),
+  level_estimate: z
+    .enum(['beginner', 'intermediate', 'advanced'])
+    .describe(
+      '学習者の英語力を3段階で判定する。語彙の幅、文の複雑さ、誤りの密度に加えて、' +
+      '会話の中で自分から話を広げられているかも加味すること'
+    ),
+});
+
+export type TopicSessionGrading = z.infer<typeof TopicSessionGradingSchema>;
+export type TopicUtteranceEvaluation = z.infer<typeof TopicUtteranceEvaluationSchema>;
+export type UtteranceRating = z.infer<typeof UtteranceRatingSchema>;
+
+const TOPIC_TOOL_NAME = 'submit_topic_grading';
+
+export type TopicTranscriptTurn = {
+  turnIndex: number;
+  role: 'ai5' | 'user';
+  content: string;
+};
+
+export async function gradeTopicSession(
+  transcript: TopicTranscriptTurn[],
+  profile: { occupation: string; hobbies: string },
+  learnerLevel?: LevelLabel,
+  detailed = false,
+): Promise<TopicSessionGrading> {
+  const levelInstruction = learnerLevel
+    ? `\n              - この学習者の推定レベルは「${learnerLevel}」です。explanation_ja はこのレベルに合わせた
+              説明にしてください。ただし誤り検出の正確さはレベルに関わらず妥協しないこと。`
+    : '';
+
+  const detailedInstruction = detailed
+    ? `\n              - 各errorについて levelt_stage（'vocabulary'なら'lexical_selection'、'grammar'なら
+              'grammatical_encoding'）と、corrected_fragmentとは別の自然な言い換え候補1〜2個を
+              alternative_phrasingsに設定すること。`
+    : `\n              - levelt_stage と alternative_phrasings は省略すること（設定しない）。`;
+
+  const conversation = transcript
+    .map((turn) =>
+      turn.role === 'ai5'
+        ? `AI: ${turn.content}`
+        : `USER [turn_index=${turn.turnIndex}]: ${turn.content}`,
+    )
+    .join('\n');
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 8192,
+    tools: [
+      {
+        name: TOPIC_TOOL_NAME,
+        description:
+          'トピック説明(会話ドリル)の添削結果を返す。ユーザーの発言ごとに評価と指摘を返すこと。',
+        input_schema: z.toJSONSchema(TopicSessionGradingSchema) as Anthropic.Tool.InputSchema,
+      },
+    ],
+    tool_choice: { type: 'tool', name: TOPIC_TOOL_NAME },
+    system: `あなたは日本人英語学習者向けの英会話添削者です。AIとの英語の会話ログを読み、**ユーザーの発言だけ**を添削します。
+              - USER [turn_index=N] の行だけが添削対象。AI: の行は文脈を読むためのもので、評価してはいけない
+              - ユーザーの発言は1つ残らず utterances に含める。turn_index は入力に書かれている数字をそのまま使う
+              - 誤りは1箇所につき1エントリとして errors に列挙する。user_fragment はその発言の中の文字列にすること
+              - rating が excellent のときだけ errors を空配列にする
+              - 会話なので、多少の口語表現・短い返答は不自然とみなさない。書き言葉の基準で過剰に減点しないこと
+              - overall_comment は個々のミスの列挙ではなく、会話全体としての手応えを日本語で書く${levelInstruction}${detailedInstruction}`,
+    messages: [
+      {
+        role: 'user',
+        content: `以下は英語学習者(USER)とAIの会話ログです。学習者の職業は「${profile.occupation}」、趣味は「${profile.hobbies}」です。
+USERの発言をそれぞれ添削してください。
+
+${conversation}`,
+      },
+    ],
+  });
+
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error('AI1の応答が途中で打ち切られました(max_tokens)');
+  }
+
+  const toolUseBlock = response.content.find(
+    (block): block is Anthropic.ToolUseBlock =>
+      block.type === 'tool_use' && block.name === TOPIC_TOOL_NAME,
+  );
+
+  if (!toolUseBlock) {
+    throw new Error('AI1がsubmit_topic_gradingを返しませんでした');
+  }
+
+  const rawInput = (typeof toolUseBlock.input === 'object' && toolUseBlock.input !== null)
+    ? (toolUseBlock.input as Record<string, unknown>)
+    : {};
+
+  // 発言単位のerrorsが欠けていても画面が壊れないよう、配列でないものは空配列に寄せる
+  const rawUtterances = Array.isArray(rawInput.utterances) ? rawInput.utterances : [];
+  const sanitizedInput = {
+    ...rawInput,
+    utterances: rawUtterances.map((u) => {
+      const utterance = (typeof u === 'object' && u !== null) ? (u as Record<string, unknown>) : {};
+      return {
+        ...utterance,
+        errors: Array.isArray(utterance.errors) ? utterance.errors : [],
+      };
+    }),
+    level_estimate: ['beginner', 'intermediate', 'advanced'].includes(rawInput.level_estimate as string)
+      ? rawInput.level_estimate
+      : 'intermediate',
+  };
+
+  return TopicSessionGradingSchema.parse(sanitizedInput);
+}
+
 // weak_points用のキーはAI1に生成させず、こちらで機械的に組み立てて表記ゆれを防ぐ
 export function toConceptKey(error: GradingError): string | null {
   if (error.category === 'grammar' && error.grammar_point) {

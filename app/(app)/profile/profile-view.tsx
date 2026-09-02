@@ -8,7 +8,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { updateGradeBand } from "@/app/(app)/settings/actions"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { updateGradeBand, updateTopicProfile } from "@/app/(app)/settings/actions"
+import { MAX_HOBBIES_LENGTH, MAX_OCCUPATION_LENGTH } from "@/lib/topic"
 import {
   GRADE_BANDS,
   GRADE_BAND_LABELS,
@@ -22,11 +26,23 @@ type ProfileViewProps = {
   createdAt: string
   gradeBand: GradeBand | null
   levelScore: number | null
+  occupation: string | null
+  hobbies: string | null
 }
 
-export function ProfileView({ email, createdAt, gradeBand, levelScore }: ProfileViewProps) {
+export function ProfileView({
+  email,
+  createdAt,
+  gradeBand,
+  levelScore,
+  occupation,
+  hobbies,
+}: ProfileViewProps) {
   const [selectedGradeBand, setSelectedGradeBand] = useState<GradeBand | null>(gradeBand)
   const [saving, setSaving] = useState(false)
+  const [occupationValue, setOccupationValue] = useState(occupation ?? "")
+  const [hobbiesValue, setHobbiesValue] = useState(hobbies ?? "")
+  const [savingTopicProfile, setSavingTopicProfile] = useState(false)
 
   const initials = email.slice(0, 2).toUpperCase() || "CN"
   const joinedLabel = createdAt
@@ -44,6 +60,19 @@ export function ProfileView({ email, createdAt, gradeBand, levelScore }: Profile
       toast.error("保存に失敗しました")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSaveTopicProfile() {
+    setSavingTopicProfile(true)
+    try {
+      const { error } = await updateTopicProfile(occupationValue, hobbiesValue)
+      if (error) throw new Error(error)
+      toast.success("職業・趣味を保存しました")
+    } catch {
+      toast.error("保存に失敗しました")
+    } finally {
+      setSavingTopicProfile(false)
     }
   }
 
@@ -89,6 +118,46 @@ export function ProfileView({ email, createdAt, gradeBand, levelScore }: Profile
             </Select>
             <Button onClick={handleSave} disabled={saving || !selectedGradeBand}>
               {saving ? "保存中..." : "保存"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>職業・趣味</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            トピック説明でAIがあなたに合わせた話題を出すために使います。両方とも設定するとトピック説明を始められます。
+          </p>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="occupation">職業</Label>
+            <Input
+              id="occupation"
+              value={occupationValue}
+              onChange={(e) => setOccupationValue(e.target.value)}
+              placeholder="未設定（例：ソフトウェアエンジニア）"
+              maxLength={MAX_OCCUPATION_LENGTH}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="hobbies">趣味</Label>
+            <Textarea
+              id="hobbies"
+              value={hobbiesValue}
+              onChange={(e) => setHobbiesValue(e.target.value)}
+              placeholder="未設定（例：登山, 写真, ゲーム）"
+              maxLength={MAX_HOBBIES_LENGTH}
+              rows={2}
+            />
+            <p className="text-xs text-muted-foreground">
+              カンマ区切りで複数書けます。具体的なほど話題が広がります。
+            </p>
+          </div>
+          <div>
+            <Button onClick={handleSaveTopicProfile} disabled={savingTopicProfile}>
+              {savingTopicProfile ? "保存中..." : "保存"}
             </Button>
           </div>
         </CardContent>

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { GRADE_BANDS, type GradeBand } from "@/lib/level";
+import { MAX_HOBBIES_LENGTH, MAX_OCCUPATION_LENGTH } from "@/lib/topic";
 
 export async function updateGradeBand(gradeBand: string): Promise<{ error?: string }> {
   if (!GRADE_BANDS.includes(gradeBand as GradeBand)) {
@@ -19,6 +20,41 @@ export async function updateGradeBand(gradeBand: string): Promise<{ error?: stri
   const { error } = await supabase
     .from("profiles")
     .update({ grade_band: gradeBand })
+    .eq("user_id", user.id);
+  if (error) {
+    return { error: "failed to save" };
+  }
+  return {};
+}
+
+// トピック説明のAI5が会話の材料に使う。どちらかが空ならこの機能は使えない(未設定扱い)
+export async function updateTopicProfile(
+  occupation: string,
+  hobbies: string
+): Promise<{ error?: string }> {
+  const trimmedOccupation = occupation.trim();
+  const trimmedHobbies = hobbies.trim();
+
+  if (trimmedOccupation.length > MAX_OCCUPATION_LENGTH) {
+    return { error: "occupation too long" };
+  }
+  if (trimmedHobbies.length > MAX_HOBBIES_LENGTH) {
+    return { error: "hobbies too long" };
+  }
+
+  const supabase = await createSupabaseClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return { error: "unauthorized" };
+  }
+
+  // 空文字はnullに寄せて「未設定」の表現をDB側で1通りに保つ
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      occupation: trimmedOccupation || null,
+      hobbies: trimmedHobbies || null,
+    })
     .eq("user_id", user.id);
   if (error) {
     return { error: "failed to save" };

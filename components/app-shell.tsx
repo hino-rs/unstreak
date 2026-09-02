@@ -24,7 +24,7 @@ import { AiAssistantPanel } from "@/components/ai-assistant-panel";
 import { CreditBalanceBadge } from "@/components/credit-balance-badge";
 import type { User } from "@supabase/supabase-js";
 
-const AI_ASSISTANT_PATHS = ["/practice/describe", "/practice/painting", "/practice/listening"];
+const AI_ASSISTANT_PATHS = ["/practice/describe", "/practice/painting", "/practice/listening", "/practice/topic"];
 
 export function AppShell({
     user,

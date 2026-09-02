@@ -508,27 +508,116 @@ export type Database = {
           created_at: string
           display_name: string | null
           grade_band: string | null
+          hobbies: string | null
           level_score: number | null
           listening_tier_score: number | null
+          occupation: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           display_name?: string | null
           grade_band?: string | null
+          hobbies?: string | null
           level_score?: number | null
           listening_tier_score?: number | null
+          occupation?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           display_name?: string | null
           grade_band?: string | null
+          hobbies?: string | null
           level_score?: number | null
           listening_tier_score?: number | null
+          occupation?: string | null
           user_id?: string
         }
         Relationships: []
+      }
+      topic_session_usage: {
+        Row: {
+          session_count: number
+          usage_month: string
+          user_id: string
+        }
+        Insert: {
+          session_count?: number
+          usage_month: string
+          user_id: string
+        }
+        Update: {
+          session_count?: number
+          usage_month?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      topic_sessions: {
+        Row: {
+          ai1_response: Json | null
+          ended_at: string | null
+          id: string
+          started_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          ai1_response?: Json | null
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          ai1_response?: Json | null
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      topic_turns: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+          turn_index: number
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          session_id: string
+          turn_index: number
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+          turn_index?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "topic_turns_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "topic_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vocabulary_log: {
         Row: {
@@ -611,10 +700,16 @@ export type Database = {
         Args: { p_amount: number; p_reason: string; p_user_id: string }
         Returns: undefined
       }
+      refund_topic_session: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: undefined
+      }
       set_stripe_customer_id: {
         Args: { p_stripe_customer_id: string; p_user_id: string }
         Returns: undefined
       }
+      start_topic_session: { Args: { p_user_id: string }; Returns: string }
+      topic_monthly_limit: { Args: { p_user_id: string }; Returns: number }
       update_level_score: {
         Args: { p_alpha?: number; p_level_estimate: number; p_user_id: string }
         Returns: number

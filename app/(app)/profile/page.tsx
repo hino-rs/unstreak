@@ -9,7 +9,7 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("grade_band, level_score")
+    .select("grade_band, level_score, occupation, hobbies")
     .eq("user_id", user.id)
     .single();
 
@@ -19,6 +19,8 @@ export default async function ProfilePage() {
       createdAt={user.created_at}
       gradeBand={profile?.grade_band ?? null}
       levelScore={profile?.level_score ?? null}
+      occupation={profile?.occupation ?? null}
+      hobbies={profile?.hobbies ?? null}
     />
   );
 }

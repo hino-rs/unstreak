@@ -40,7 +40,7 @@ const navItems = [
     { href: "/practice/painting", label: "絵画ドリル", icon: Palette },
     { href: "/practice/listening", label: "リスニング", icon: Headphones },
     { href: "/practice/diary", label: "日記", icon: NotebookPen, locked: true },
-    { href: "/practice/topic", label: "トピック説明", icon: MessagesSquare, locked: true },
+    { href: "/practice/topic", label: "トピック説明", icon: MessagesSquare },
     { href: "/review", label: "振り返り", icon: History },
     { href: "/training", label: "特訓", icon: Dumbbell },
     { href: "/settings", label: "設定", icon: Settings },

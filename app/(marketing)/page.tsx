@@ -92,7 +92,7 @@ export default function LandingPage() {
       <section className="bg-slate-50 px-4 py-16">
         <FadeIn className="max-w-2xl mx-auto text-center">
           <p className="text-lg sm:text-xl leading-relaxed text-slate-600">
-            英語学習アプリ、553日ストリーク。
+            開発者は思った。英語学習アプリ、553日ストリーク。
             <br />
             毎日のミッションも、月間バッジも、全部こなした。
           </p>
@@ -238,11 +238,6 @@ export default function LandingPage() {
               <Badge variant="secondary" className="shrink-0">近日公開</Badge>
               <span className="text-slate-700 font-medium">英語日記</span>
               <span className="text-slate-400 text-sm">— 一日の出来事を、英語で残す</span>
-            </div>
-            <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card px-5 py-4">
-              <Badge variant="secondary" className="shrink-0">近日公開</Badge>
-              <span className="text-slate-700 font-medium">トピック説明</span>
-              <span className="text-slate-400 text-sm">— あなたの日常やキャリアに合わせて話す練習を</span>
             </div>
           </div>
         </FadeIn>
