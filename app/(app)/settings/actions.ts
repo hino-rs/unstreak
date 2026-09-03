@@ -17,12 +17,19 @@ export async function updateGradeBand(gradeBand: string): Promise<{ error?: stri
     return { error: "unauthorized" };
   }
 
-  const { error } = await supabase
+  // .select()を付けて更新行を受け取る。profiles行が無いとUPDATEは0行でもerrorにならず、
+  // 「保存成功」と表示したまま何も保存されない状態になるため、行数で成否を判定する
+  const { data, error } = await supabase
     .from("profiles")
     .update({ grade_band: gradeBand })
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select("user_id");
   if (error) {
     return { error: "failed to save" };
+  }
+  if (!data || data.length === 0) {
+    console.error("[updateGradeBand] profiles row not found for user:", user.id);
+    return { error: "profile row not found" };
   }
   return {};
 }
@@ -48,16 +55,22 @@ export async function updateTopicProfile(
     return { error: "unauthorized" };
   }
 
-  // 空文字はnullに寄せて「未設定」の表現をDB側で1通りに保つ
-  const { error } = await supabase
+  // 空文字はnullに寄せて「未設定」の表現をDB側で1通りに保つ。
+  // .select()で更新行を受け取り、0行(profiles行が無い)を成功扱いしないようにする
+  const { data, error } = await supabase
     .from("profiles")
     .update({
       occupation: trimmedOccupation || null,
       hobbies: trimmedHobbies || null,
     })
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select("user_id");
   if (error) {
     return { error: "failed to save" };
+  }
+  if (!data || data.length === 0) {
+    console.error("[updateTopicProfile] profiles row not found for user:", user.id);
+    return { error: "profile row not found" };
   }
   return {};
 }
