@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { anthropic } from "@/lib/anthropic";
+import { anthropic, logAiUsage } from "@/lib/anthropic";
 import type { LevelLabel } from "@/lib/level";
 import type { ListeningTargetItem, ListeningTurnType } from "@/lib/listening";
 
@@ -136,6 +136,10 @@ function toAnthropicMessages(history: Ai4HistoryTurn[]): Anthropic.MessageParam[
 
 export async function generateAi4Turn(req: Ai4Request): Promise<Ai4Response> {
   const response = await anthropic.messages.create({
+    // プロンプトキャッシュは入れていない。Haiku 4.5 はキャッシュ最小prefixが4096トークンと
+    // 突出して高く(Opus 5は512、Sonnet 5は1024)、この呼び出しの tools+system は実測で約1,280トークンで全く届かない。
+    // cache_control を付けてもエラーにならず黙って無効化されるだけなので、あえて付けない。
+    // モデルを乗り換えるかsystemが大幅に伸びたら再検討すること
     model: "claude-haiku-4-5",
     max_tokens: 1024,
     tools: [
@@ -149,6 +153,8 @@ export async function generateAi4Turn(req: Ai4Request): Promise<Ai4Response> {
     system: buildSystemPrompt(req.scenario, req.learnerLevel),
     messages: toAnthropicMessages(req.history),
   });
+
+  logAiUsage("ai4.generateTurn", "claude-haiku-4-5", response.usage);
 
   if (response.stop_reason === "max_tokens") {
     throw new Error("AI4の応答が途中で打ち切られました(max_tokens)");

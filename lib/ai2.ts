@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { anthropic } from "@/lib/anthropic";
+import { anthropic, logAiUsage } from "@/lib/anthropic";
 
 const GuessRequiredSchema = z.object({
   status: z.literal("guess_required"),
@@ -107,6 +107,10 @@ explanationは1文、口語的に。授業のような解説はしない。
 
 export async function askAi2(text: string): Promise<Ai2Response> {
   const response = await anthropic.messages.create({
+    // プロンプトキャッシュは入れていない。Haiku 4.5 はキャッシュ最小prefixが4096トークンと
+    // 突出して高く(Opus 5は512、Sonnet 5は1024)、この呼び出しの system は実測で約660トークン(＋ツールスキーマ)で全く届かない。
+    // cache_control を付けてもエラーにならず黙って無効化されるだけなので、あえて付けない。
+    // モデルを乗り換えるかsystemが大幅に伸びたら再検討すること
     model: "claude-haiku-4-5",
     max_tokens: 1024,
     tools: [
@@ -120,6 +124,8 @@ export async function askAi2(text: string): Promise<Ai2Response> {
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: text }],
   });
+
+  logAiUsage("ai2.askAi2", "claude-haiku-4-5", response.usage);
 
   const toolUseBlock = response.content.find(
     (block): block is Anthropic.ToolUseBlock =>

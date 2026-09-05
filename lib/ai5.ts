@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { anthropic } from "@/lib/anthropic";
+import { anthropic, logAiUsage } from "@/lib/anthropic";
 import type { LevelLabel } from "@/lib/level";
 import type { SubscriptionPlan } from "@/lib/credits";
 import type { TopicProfile } from "@/lib/topic";
@@ -85,6 +85,26 @@ function toAnthropicMessages(history: Ai5HistoryTurn[]): Anthropic.MessageParam[
   );
 }
 
+// トピック説明は毎ターン全履歴を再送する構造なので、直近ターンの末尾に breakpoint を置くと
+// 次のターンが「前ターンまでの履歴」をキャッシュから読める(読み出しは通常入力の約1/10の単価)。
+// TTLは5分。学習者が英文を組み立てる時間が5分を超えるとそのターンはミスするが、
+// ミスしても通常課金に戻るだけで壊れはしない
+function withHistoryCacheBreakpoint(
+  messages: Anthropic.MessageParam[]
+): Anthropic.MessageParam[] {
+  const last = messages[messages.length - 1];
+  if (!last || typeof last.content !== "string") return messages;
+  return [
+    ...messages.slice(0, -1),
+    {
+      role: last.role,
+      content: [
+        { type: "text", text: last.content, cache_control: { type: "ephemeral" } },
+      ],
+    },
+  ];
+}
+
 export async function generateAi5Turn(req: Ai5Request): Promise<{ utterance: string }> {
   const response = await anthropic.messages.create({
     model: ai5ModelForPlan(req.plan),
@@ -100,9 +120,20 @@ export async function generateAi5Turn(req: Ai5Request): Promise<{ utterance: str
       },
     ],
     tool_choice: { type: "tool", name: TOOL_NAME },
-    system: buildSystemPrompt(req.profile, req.learnerLevel),
-    messages: toAnthropicMessages(req.history),
+    // systemにはプロフィール(職業・趣味)が埋まるのでprefixはユーザーごとに分かれるが、
+    // 1セッション内では不変なのでセッションを通してヒットし続ける。tools -> system の順に
+    // レンダリングされるため、このbreakpointはツールスキーマごとキャッシュする
+    system: [
+      {
+        type: "text",
+        text: buildSystemPrompt(req.profile, req.learnerLevel),
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: withHistoryCacheBreakpoint(toAnthropicMessages(req.history)),
   });
+
+  logAiUsage("ai5.generateTurn", ai5ModelForPlan(req.plan), response.usage);
 
   if (response.stop_reason === "max_tokens") {
     throw new Error("AI5の応答が途中で打ち切られました(max_tokens)");

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from 'zod';
-import { anthropic } from "@/lib/anthropic";
+import { anthropic, logAiUsage } from "@/lib/anthropic";
 import type { LevelLabel } from "@/lib/level";
 
 const GradingErrorSchema = z.object({
@@ -71,6 +71,15 @@ export type GradingError = z.infer<typeof GradingErrorSchema>;
 
 const TOOL_NAME = 'submit_grading';
 
+// キャッシュ対象の固定prefix。ここに可変値を入れるとプロンプトキャッシュが分裂するので、
+// 学習者ごとに変わる指示は呼び出し側の第2ブロックに置くこと
+const DESCRIBE_GRADING_RULES = `あなたは日本人英語学習者向けの英作文添削者です。
+              - 誤りは1箇所につき1エントリとして、**すべて** errors に列挙する
+              - 同じ文法項目の誤りが複数箇所にあれば、箇所ごとに別エントリにする
+              - overall_comment で言及した誤りは、必ず対応するエントリが errors に存在すること
+              - 誤りが本当に1つもない場合に限り errors を [] にする
+              - level_estimate は誤りの有無ではなく、語彙・構文の複雑さと誤り密度から総合的に判定する`;
+
 // Anthropic側がtype:'url'でURLを直接フェッチできないホスト(Wikimedia Commons等、
 // リダイレクトを挟むホスト)向けに、呼び出し元でbase64化した画像も受け付ける
 export type ImageInput = string | { data: string; mediaType: string };
@@ -124,12 +133,14 @@ export async function gradeDescription(
       },
     ],
     tool_choice: { type: 'tool', name: TOOL_NAME },
-    system: `あなたは日本人英語学習者向けの英作文添削者です。
-              - 誤りは1箇所につき1エントリとして、**すべて** errors に列挙する
-              - 同じ文法項目の誤りが複数箇所にあれば、箇所ごとに別エントリにする
-              - overall_comment で言及した誤りは、必ず対応するエントリが errors に存在すること
-              - 誤りが本当に1つもない場合に限り errors を [] にする
-              - level_estimate は誤りの有無ではなく、語彙・構文の複雑さと誤り密度から総合的に判定する${levelInstruction}${detailedInstruction}`,
+    // tools -> system -> messages の順にレンダリングされるので、system先頭ブロックのbreakpointは
+    // ツールスキーマ(この呼び出しの固定入力の大半)ごとキャッシュする。可変部(levelInstruction /
+    // detailedInstruction)を同じブロックに混ぜるとレベル3種×detailed2種=6通りのprefixに分裂し
+    // ヒット率が1/6になるため、必ず後続の別ブロックに置くこと
+    system: [
+      { type: 'text', text: DESCRIBE_GRADING_RULES, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: `${levelInstruction}${detailedInstruction}` },
+    ],
     messages: [
       {
         role: 'user',
@@ -143,6 +154,8 @@ export async function gradeDescription(
       },
     ],
   });
+
+  logAiUsage('ai1.gradeDescription', 'claude-sonnet-5', response.usage);
 
   if (response.stop_reason === 'max_tokens') {
     throw new Error('AI1の応答が途中で打ち切られました(max_tokens)');
@@ -222,6 +235,15 @@ export type UtteranceRating = z.infer<typeof UtteranceRatingSchema>;
 
 const TOPIC_TOOL_NAME = 'submit_topic_grading';
 
+// キャッシュ対象の固定prefix(注意点は DESCRIBE_GRADING_RULES と同じ)
+const TOPIC_GRADING_RULES = `あなたは日本人英語学習者向けの英会話添削者です。AIとの英語の会話ログを読み、**ユーザーの発言だけ**を添削します。
+              - USER [turn_index=N] の行だけが添削対象。AI: の行は文脈を読むためのもので、評価してはいけない
+              - ユーザーの発言は1つ残らず utterances に含める。turn_index は入力に書かれている数字をそのまま使う
+              - 誤りは1箇所につき1エントリとして errors に列挙する。user_fragment はその発言の中の文字列にすること
+              - rating が excellent のときだけ errors を空配列にする
+              - 会話なので、多少の口語表現・短い返答は不自然とみなさない。書き言葉の基準で過剰に減点しないこと
+              - overall_comment は個々のミスの列挙ではなく、会話全体としての手応えを日本語で書く`;
+
 export type TopicTranscriptTurn = {
   turnIndex: number;
   role: 'ai5' | 'user';
@@ -269,13 +291,11 @@ export async function gradeTopicSession(
       },
     ],
     tool_choice: { type: 'tool', name: TOPIC_TOOL_NAME },
-    system: `あなたは日本人英語学習者向けの英会話添削者です。AIとの英語の会話ログを読み、**ユーザーの発言だけ**を添削します。
-              - USER [turn_index=N] の行だけが添削対象。AI: の行は文脈を読むためのもので、評価してはいけない
-              - ユーザーの発言は1つ残らず utterances に含める。turn_index は入力に書かれている数字をそのまま使う
-              - 誤りは1箇所につき1エントリとして errors に列挙する。user_fragment はその発言の中の文字列にすること
-              - rating が excellent のときだけ errors を空配列にする
-              - 会話なので、多少の口語表現・短い返答は不自然とみなさない。書き言葉の基準で過剰に減点しないこと
-              - overall_comment は個々のミスの列挙ではなく、会話全体としての手応えを日本語で書く${levelInstruction}${detailedInstruction}`,
+    // 分割の理由は gradeDescription 側のコメント参照
+    system: [
+      { type: 'text', text: TOPIC_GRADING_RULES, cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: `${levelInstruction}${detailedInstruction}` },
+    ],
     messages: [
       {
         role: 'user',
@@ -286,6 +306,8 @@ ${conversation}`,
       },
     ],
   });
+
+  logAiUsage('ai1.gradeTopicSession', 'claude-sonnet-5', response.usage);
 
   if (response.stop_reason === 'max_tokens') {
     throw new Error('AI1の応答が途中で打ち切られました(max_tokens)');
