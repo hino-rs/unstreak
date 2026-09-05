@@ -129,7 +129,7 @@ ${req.round1Text}`;
 
   const response = await anthropic.messages.create({
     // プロンプトキャッシュは入れていない。Haiku 4.5 はキャッシュ最小prefixが4096トークンと
-    // 突出して高く(Opus 5は512、Sonnet 5は1024)、この呼び出しの system は実測で約780トークン(＋ツールスキーマ)で全く届かない。
+    // 突出して高い(Opus 5は512、Sonnet 5は1024)。実測のリクエスト全体で入力3,179トークン。うち絵画のfact-baseはuser側=prefix外なので、キャッシュ対象はさらに小さい。
     // cache_control を付けてもエラーにならず黙って無効化されるだけなので、あえて付けない。
     // モデルを乗り換えるかsystemが大幅に伸びたら再検討すること
     model: "claude-haiku-4-5",

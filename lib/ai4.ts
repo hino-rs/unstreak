@@ -137,7 +137,8 @@ function toAnthropicMessages(history: Ai4HistoryTurn[]): Anthropic.MessageParam[
 export async function generateAi4Turn(req: Ai4Request): Promise<Ai4Response> {
   const response = await anthropic.messages.create({
     // プロンプトキャッシュは入れていない。Haiku 4.5 はキャッシュ最小prefixが4096トークンと
-    // 突出して高く(Opus 5は512、Sonnet 5は1024)、この呼び出しの tools+system は実測で約1,280トークンで全く届かない。
+    // 突出して高い(Opus 5は512、Sonnet 5は1024)。実測でprefix(tools+system)は約2,650トークン。履歴は1ターン約25トークンずつしか伸びないので、
+    // 24ターンの上限まで会話しても約3,250トークンにしかならず、最後まで4096に届かない。
     // cache_control を付けてもエラーにならず黙って無効化されるだけなので、あえて付けない。
     // モデルを乗り換えるかsystemが大幅に伸びたら再検討すること
     model: "claude-haiku-4-5",

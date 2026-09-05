@@ -108,7 +108,7 @@ explanationは1文、口語的に。授業のような解説はしない。
 export async function askAi2(text: string): Promise<Ai2Response> {
   const response = await anthropic.messages.create({
     // プロンプトキャッシュは入れていない。Haiku 4.5 はキャッシュ最小prefixが4096トークンと
-    // 突出して高く(Opus 5は512、Sonnet 5は1024)、この呼び出しの system は実測で約660トークン(＋ツールスキーマ)で全く届かない。
+    // 突出して高い(Opus 5は512、Sonnet 5は1024)。実測のリクエスト全体で入力2,151トークン(うち大半はツールスキーマ)で、キャッシュ対象のprefixはこれ以下。
     // cache_control を付けてもエラーにならず黙って無効化されるだけなので、あえて付けない。
     // モデルを乗り換えるかsystemが大幅に伸びたら再検討すること
     model: "claude-haiku-4-5",
