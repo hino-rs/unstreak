@@ -106,8 +106,16 @@ export async function gradeDescription(
     : `\n              - levelt_stage と alternative_phrasings は省略すること（設定しない）。`;
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    model: 'claude-sonnet-5',
+    // Sonnet 5はthinkingを省略するとadaptiveがデフォルトで走り、thinkingトークンがmax_tokensを消費する
+    // (Sonnet 4.6は省略=thinkingオフだった)。加えて新トークナイザでトークン数自体も増える(本番同等の
+    // プロンプトをcount_tokensで実測して+6.9%)。4.6時代の4096のままだと打ち切られて
+    // stop_reason='max_tokens'で下のthrowに落ちるため、倍に引き上げている
+    max_tokens: 8192,
+    thinking: { type: 'adaptive' },
+    // 添削は誤りを漏れなく列挙する想起重視のタスクで、取りこぼしがそのまま学習価値の毀損になる。
+    // lowは指示に忠実な反面この種のタスクで浅くなりうるため、mediumを採用(≒Sonnet 4.6のhigh相当)
+    output_config: { effort: 'medium' },
     tools: [
       {
         name: TOOL_NAME,
@@ -246,8 +254,12 @@ export async function gradeTopicSession(
     .join('\n');
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
+    model: 'claude-sonnet-5',
+    // 会話ログ全体の発言を1つ残らず添削する=出力が最も長くなる呼び出し。
+    // thinking分＋新トークナイザ分の余裕を見て倍にしている(理由の詳細はgradeDescription側のコメント参照)
+    max_tokens: 16384,
+    thinking: { type: 'adaptive' },
+    output_config: { effort: 'medium' },
     tools: [
       {
         name: TOPIC_TOOL_NAME,

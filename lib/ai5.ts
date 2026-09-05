@@ -31,7 +31,7 @@ const TOOL_NAME = "submit_ai5_turn";
 
 // Free/Standard=Sonnet、Pro=Opus。原価試算もこの2モデルの単価で出している
 export function ai5ModelForPlan(plan: SubscriptionPlan | null): string {
-  return plan === "pro" ? "claude-opus-5" : "claude-sonnet-4-6";
+  return plan === "pro" ? "claude-opus-5" : "claude-sonnet-5";
 }
 
 function buildSystemPrompt(profile: TopicProfile, learnerLevel?: LevelLabel): string {
@@ -88,7 +88,10 @@ function toAnthropicMessages(history: Ai5HistoryTurn[]): Anthropic.MessageParam[
 export async function generateAi5Turn(req: Ai5Request): Promise<{ utterance: string }> {
   const response = await anthropic.messages.create({
     model: ai5ModelForPlan(req.plan),
-    max_tokens: 1024,
+    // 発話自体は英語1〜3文だが、Sonnet 5もOpus 5もthinkingがデフォルトONで、thinkingトークンは
+    // max_tokensを消費する。1024のままだと思考だけで枠を使い切って下のthrowに落ち、会話が途中で切れる。
+    // 実際に生成した分しか課金されないので、枠を広く取ること自体のコストはない
+    max_tokens: 4096,
     tools: [
       {
         name: TOOL_NAME,
